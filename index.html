@@ -86,37 +86,40 @@
       var btn = document.getElementById('bgmToggle');
       if (!bgm || !btn) return;
       bgm.volume = 0.55;
-      var started = false;
+      var unmuted = false;
 
       function reflect() {
-        var playing = !bgm.paused && !bgm.ended;
-        btn.classList.toggle('playing', playing);
+        // 只有真正出声（未暂停且未静音）时才显示跳动动画
+        var audible = !bgm.paused && !bgm.ended && !bgm.muted;
+        btn.classList.toggle('playing', audible);
       }
 
-      function tryPlay() {
+      // 进入页面即开始播放：浏览器允许“静音自动播放”，所以先静音起播，
+      // 播放时间线从进页面这一刻就开始走。
+      bgm.muted = true;
+      (function startMuted() {
         var p = bgm.play();
-        if (p && typeof p.then === 'function') {
-          p.then(function () { started = true; reflect(); })
-           .catch(function () { /* 被浏览器拦截，等待用户首次交互 */ });
-        }
-      }
+        if (p && typeof p.then === 'function') p.then(reflect).catch(function () {});
+      })();
 
-      // 进入即尝试播放（多数浏览器会拦截带声音的自动播放）
-      tryPlay();
-
-      // 首次任意交互（含点击“跳过”进入主页）时补播一次
-      function onFirstGesture() {
-        if (started) return;
-        tryPlay();
+      // 用户第一次触碰屏幕（含开屏页点击“跳过”或任意位置）立即解除静音出声
+      function unmute() {
+        if (unmuted) return;
+        unmuted = true;
+        bgm.muted = false;
+        if (bgm.paused) { var p = bgm.play(); if (p && p.catch) p.catch(function () {}); }
+        reflect();
       }
       ['pointerdown', 'touchstart', 'click', 'keydown'].forEach(function (ev) {
-        document.addEventListener(ev, onFirstGesture, { passive: true });
+        document.addEventListener(ev, unmute, { passive: true, capture: true });
       });
 
-      // 用户主动开关
+      // 悬浮按钮：主动开/关
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
-        if (bgm.paused) { started = true; tryPlay(); }
+        unmuted = true;
+        bgm.muted = false;
+        if (bgm.paused) { var p = bgm.play(); if (p && p.catch) p.catch(function () {}); }
         else { bgm.pause(); }
         reflect();
       });
