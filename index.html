@@ -68,6 +68,60 @@
   <!-- 轻提示 -->
   <div id="toast" class="toast"></div>
 
+  <!-- 世界杯主题曲（进入即播放） -->
+  <audio id="bgm" src="assets/theme.mp3" loop preload="auto"></audio>
+  <button id="bgmToggle" class="bgm-toggle" aria-label="背景音乐开关" title="主题曲">
+    <span class="bgm-ico">🎵</span>
+    <span class="bgm-eq"><i></i><i></i><i></i></span>
+  </button>
+
+  <script>
+    (function () {
+      var bgm = document.getElementById('bgm');
+      var btn = document.getElementById('bgmToggle');
+      if (!bgm || !btn) return;
+      bgm.volume = 0.55;
+      var started = false;
+
+      function reflect() {
+        var playing = !bgm.paused && !bgm.ended;
+        btn.classList.toggle('playing', playing);
+      }
+
+      function tryPlay() {
+        var p = bgm.play();
+        if (p && typeof p.then === 'function') {
+          p.then(function () { started = true; reflect(); })
+           .catch(function () { /* 被浏览器拦截，等待用户首次交互 */ });
+        }
+      }
+
+      // 进入即尝试播放（多数浏览器会拦截带声音的自动播放）
+      tryPlay();
+
+      // 首次任意交互（含点击“跳过”进入主页）时补播一次
+      function onFirstGesture() {
+        if (started) return;
+        tryPlay();
+      }
+      ['pointerdown', 'touchstart', 'click', 'keydown'].forEach(function (ev) {
+        document.addEventListener(ev, onFirstGesture, { passive: true });
+      });
+
+      // 用户主动开关
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (bgm.paused) { started = true; tryPlay(); }
+        else { bgm.pause(); }
+        reflect();
+      });
+
+      bgm.addEventListener('play', reflect);
+      bgm.addEventListener('pause', reflect);
+      reflect();
+    })();
+  </script>
+
   <script>
     (function () {
       var splash = document.getElementById('splash');
