@@ -14,15 +14,79 @@
   });
   THIRD_SLOTS.sort((a, b) => (MATCH_BY_ID[a.match].bi) - (MATCH_BY_ID[b.match].bi));
 
-  // ---------- 存储 ----------
+  // ---------- 本地存储（仅保存登录票据 / 游客关注 / 管理员口令） ----------
   const LS = {
-    users: 'wc_users',        // [{username, password, followed:[], bets:{matchId:'home'|'draw'|'away'}}]
-    session: 'wc_session',    // username
-    results: 'wc_results',    // {matchId:{home,away}} 录入的真实比分（覆盖演示比分）
+    token: 'wc_token',                // 登录票据（云端会话）
     guestFollows: 'wc_guest_follows', // 未登录时关注的球队
+    adminSecret: 'wc_admin_secret',   // 管理员口令（本地记住）
   };
   const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
   const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+
+  // ---------- 云端共享数据（内存缓存） ----------
+  // results: {matchId:{home,away}} 管理员录入的真实比分
+  // players: [{username, followed, bets, scoreBets, goalBets, championBet}] 所有真实玩家
+  // me:      当前登录者（同上结构）或 null
+  const CLOUD = { token: null, me: null, players: [], results: {}, loaded: false, online: true };
+
+  async function api(path, opts = {}) {
+    const res = await fetch('/api' + path, {
+      headers: { 'Content-Type': 'application/json' },
+      ...opts,
+    });
+    let data = {};
+    try { data = await res.json(); } catch { /* 忽略空响应 */ }
+    if (!res.ok) { const e = new Error(data.error || ('请求失败 ' + res.status)); e.status = res.status; throw e; }
+    return data;
+  }
+
+  // 统一玩家结构（补齐缺省字段）
+  function normUser(u) {
+    u = u || {};
+    return {
+      username: u.username,
+      followed: Array.isArray(u.followed) ? u.followed : [],
+      bets: u.bets || {},
+      scoreBets: u.scoreBets || {},
+      goalBets: u.goalBets || {},
+      championBet: u.championBet || null,
+    };
+  }
+
+  async function refreshState() {
+    try {
+      const q = CLOUD.token ? ('?token=' + encodeURIComponent(CLOUD.token)) : '';
+      const data = await api('/state' + q, { method: 'GET' });
+      CLOUD.results = data.results || {};
+      CLOUD.players = (data.players || []).map(normUser);
+      CLOUD.me = data.me ? normUser(data.me) : null;
+      if (CLOUD.token && !CLOUD.me) { CLOUD.token = null; localStorage.removeItem(LS.token); }
+      CLOUD.online = true;
+    } catch (e) {
+      CLOUD.online = false;
+    }
+    CLOUD.loaded = true;
+  }
+
+  // 把 me 的最新数据同步进 players（积分榜即时反映）
+  function syncMeIntoPlayers() {
+    if (!CLOUD.me) return;
+    const i = CLOUD.players.findIndex(x => x.username === CLOUD.me.username);
+    const copy = normUser(JSON.parse(JSON.stringify(CLOUD.me)));
+    if (i >= 0) CLOUD.players[i] = copy; else CLOUD.players.push(copy);
+  }
+
+  // 把 me 的全部竞猜与关注覆盖保存到云端（失败回滚）
+  async function pushMe(snapshot) {
+    if (!CLOUD.me || !CLOUD.token) return;
+    try {
+      const { username, ...data } = CLOUD.me;
+      await api('/save', { method: 'POST', body: JSON.stringify({ token: CLOUD.token, data }) });
+    } catch (e) {
+      if (snapshot) { CLOUD.me = normUser(JSON.parse(snapshot)); syncMeIntoPlayers(); render(); }
+      toast('保存失败，请检查网络');
+    }
+  }
 
   // ---------- 状态 ----------
   let state = {
@@ -72,7 +136,7 @@
     if (t < start + MATCH_DURATION_MS) return 'live';
     return 'finished';
   }
-  function getResults() { return load(LS.results, {}); }
+  function getResults() { return CLOUD.results; }
   function hasManual(m) { return !!getResults()[m.id]; }
   // 比分优先级：手动录入 > 官方已赛 > 模拟
   function getMatchResult(m) {
@@ -217,26 +281,20 @@
     return map;
   }
 
-  // ---------- 用户 ----------
-  function getUsers() { return load(LS.users, []); }
-  function setUsers(u) { save(LS.users, u); }
-  function currentUsername() { return load(LS.session, null); }
-  function currentUser() {
-    const name = currentUsername();
-    if (!name) return null;
-    return getUsers().find(u => u.username === name) || null;
-  }
+  // ---------- 用户（云端） ----------
+  function currentUsername() { return CLOUD.me ? CLOUD.me.username : null; }
+  function currentUser() { return CLOUD.me; }
+  // 修改当前用户：改内存 → 同步积分榜 → 异步覆盖保存到云端（失败回滚）
   function updateCurrentUser(mutator) {
-    const users = getUsers();
-    const u = users.find(x => x.username === currentUsername());
-    if (!u) return;
-    mutator(u);
-    setUsers(users);
+    if (!CLOUD.me) return;
+    const snapshot = JSON.stringify(CLOUD.me);
+    mutator(CLOUD.me);
+    syncMeIntoPlayers();
+    pushMe(snapshot);
   }
   // 当前关注的球队（已登录用账号，未登录用游客本地存储）
   function currentFollowed() {
-    const u = currentUser();
-    return u ? u.followed : load(LS.guestFollows, []);
+    return CLOUD.me ? CLOUD.me.followed : load(LS.guestFollows, []);
   }
 
   // ---------- 积分 ----------
@@ -295,14 +353,13 @@
     };
   }
   function leaderboard() {
-    return getUsers()
+    return CLOUD.players.concat(DEMO_PLAYERS)
       .map(u => ({ username: u.username, ...userStats(u) }))
       .sort((a, b) => b.points - a.points || b.correct - a.correct || a.username.localeCompare(b.username));
   }
 
-  // ---------- 演示用户 ----------
-  function seedDemoUsers() {
-    if (getUsers().length > 0) return;
+  // ---------- 演示玩家（纯前端虚拟，竞猜固定、所有人一致，不占用云端） ----------
+  const DEMO_PLAYERS = (function () {
     const picks = ['home', 'draw', 'away'];
     const users = [];
     // 榜首玩家：罗莉（各类竞猜全部命中，稳居第一）
@@ -315,11 +372,10 @@
       loriGoals[m.id] = Math.min(6, r.home + r.away);
     });
     users.push({
-      username: '罗莉', password: 'demo123', followed: [],
+      username: '罗莉', followed: [],
       bets: loriBets, scoreBets: loriScore, goalBets: loriGoals,
       championBet: finalChampion() || '巴西',
     });
-    // 其余演示用户
     const others = ['老王看球', '足球小将', '冷门收割机', '客厅解说员'];
     others.forEach((name, i) => {
       const bets = {};
@@ -327,10 +383,10 @@
         if (m.knockout) return; // 演示投注只覆盖小组赛
         if ((idx + i) % 4 !== 0) bets[m.id] = picks[(idx * 7 + i * 3) % 3];
       });
-      users.push({ username: name, password: 'demo123', followed: [], bets });
+      users.push({ username: name, followed: [], bets, scoreBets: {}, goalBets: {}, championBet: null });
     });
-    setUsers(users);
-  }
+    return users;
+  })();
 
   // ---------- 渲染：赛程 ----------
   function renderSchedule() {
@@ -1220,40 +1276,56 @@
   }
 
   // ---------- 业务动作 ----------
-  // 登录/注册后，把游客关注合并进账号
-  function mergeGuestFollows() {
+  // 登录/注册后，把游客关注合并进账号并上传云端
+  async function mergeGuestFollows() {
     const guest = load(LS.guestFollows, []);
-    if (!guest.length) return;
-    updateCurrentUser(u => {
-      guest.forEach(t => { if (!u.followed.includes(t)) u.followed.push(t); });
-    });
+    if (!guest.length || !CLOUD.me) return;
+    const set = new Set(CLOUD.me.followed);
+    guest.forEach(t => set.add(t));
+    CLOUD.me.followed = [...set];
     localStorage.removeItem(LS.guestFollows);
+    syncMeIntoPlayers();
+    try {
+      const { username, ...data } = CLOUD.me;
+      await api('/save', { method: 'POST', body: JSON.stringify({ token: CLOUD.token, data }) });
+    } catch { /* 忽略 */ }
   }
-  function handleAuth(username, password) {
-    if (state.authMode === 'register') {
-      if (username.length < 2 || username.length > 12) return authErr('用户名需 2~12 个字符');
-      if (!password || password.length < 6) return authErr('密码至少 6 位');
-      const users = getUsers();
-      if (users.some(u => u.username === username)) return authErr('该用户名已被注册');
-      users.push({ username, password, followed: [], bets: {} });
-      setUsers(users);
-      save(LS.session, username);
-      mergeGuestFollows();
-      toast('注册成功，欢迎加入！🎉');
-      state.authError = ''; go('follow');
-    } else {
-      const u = getUsers().find(x => x.username === username);
-      if (!u) return authErr('用户不存在，请先注册');
-      if (u.password !== password) return authErr('密码不正确');
-      save(LS.session, username);
-      mergeGuestFollows();
-      toast(`欢迎回来，${username}！`);
-      state.authError = ''; go('schedule');
+  function applySession(d) {
+    CLOUD.token = d.token;
+    localStorage.setItem(LS.token, JSON.stringify(d.token));
+    CLOUD.me = normUser(d.user);
+    syncMeIntoPlayers();
+  }
+  async function handleAuth(username, password) {
+    try {
+      if (state.authMode === 'register') {
+        if (username.length < 2 || username.length > 12) return authErr('用户名需 2~12 个字符');
+        if (!password || password.length < 6) return authErr('密码至少 6 位');
+        const d = await api('/register', { method: 'POST', body: JSON.stringify({ username, password }) });
+        applySession(d);
+        await mergeGuestFollows();
+        await refreshState();
+        toast('注册成功，欢迎加入！🎉');
+        state.authError = ''; go('follow');
+      } else {
+        const d = await api('/login', { method: 'POST', body: JSON.stringify({ username, password }) });
+        applySession(d);
+        await mergeGuestFollows();
+        await refreshState();
+        toast(`欢迎回来，${username}！`);
+        state.authError = ''; go('schedule');
+      }
+    } catch (e) {
+      authErr(e.message || '网络异常，请稍后再试');
     }
   }
   function authErr(msg) { state.authError = msg; render(); }
-  function logout() {
-    localStorage.removeItem(LS.session);
+  async function logout() {
+    const token = CLOUD.token;
+    CLOUD.token = null; CLOUD.me = null;
+    localStorage.removeItem(LS.token);
+    try { await api('/logout', { method: 'POST', body: JSON.stringify({ token }) }); } catch { /* 忽略 */ }
+    await refreshState();
     toast('已退出登录');
     state.authMode = 'login'; go('me');
   }
@@ -1330,7 +1402,16 @@
     });
     render();
   }
-  function saveResult(matchId) {
+  // 管理员口令：本地记住，省得每次输入
+  function ensureAdminSecret() {
+    let s = load(LS.adminSecret, null);
+    if (!s) {
+      s = window.prompt('请输入管理员口令（仅管理员录入真实比分时需要）');
+      if (s) save(LS.adminSecret, s);
+    }
+    return s;
+  }
+  async function saveResult(matchId) {
     const h = document.querySelector(`[data-score="${matchId}-home"]`);
     const a = document.querySelector(`[data-score="${matchId}-away"]`);
     if (!h || !a) return;
@@ -1338,18 +1419,30 @@
     if (isNaN(hv) || isNaN(av) || hv < 0 || av < 0) return toast('请输入有效比分');
     const m = MATCH_BY_ID[matchId];
     if (m && m.knockout && hv === av) return toast('淘汰赛不能为平局，请录入分出胜负的比分');
-    const results = getResults();
-    results[matchId] = { home: hv, away: av };
-    save(LS.results, results);
-    toast('真实比分已保存，积分已更新 ✅');
-    render();
+    const secret = ensureAdminSecret();
+    if (!secret) return toast('已取消');
+    try {
+      await api('/result', { method: 'POST', body: JSON.stringify({ secret, matchId, home: hv, away: av }) });
+      CLOUD.results[matchId] = { home: hv, away: av };
+      toast('真实比分已保存，积分已更新 ✅');
+      render();
+    } catch (e) {
+      if (e.status === 403) { localStorage.removeItem(LS.adminSecret); toast('管理员口令错误'); }
+      else toast(e.message || '保存失败');
+    }
   }
-  function clearResult(matchId) {
-    const results = getResults();
-    delete results[matchId];
-    save(LS.results, results);
-    toast('已恢复为模拟比分');
-    render();
+  async function clearResult(matchId) {
+    const secret = ensureAdminSecret();
+    if (!secret) return toast('已取消');
+    try {
+      await api('/result', { method: 'POST', body: JSON.stringify({ secret, matchId, clear: true }) });
+      delete CLOUD.results[matchId];
+      toast('已恢复为模拟比分');
+      render();
+    } catch (e) {
+      if (e.status === 403) { localStorage.removeItem(LS.adminSecret); toast('管理员口令错误'); }
+      else toast(e.message || '操作失败');
+    }
   }
   async function exportCalendar() {
     const followedArr = currentFollowed();
@@ -1395,10 +1488,17 @@
   }
 
   // ---------- 启动 ----------
-  function init() {
-    seedDemoUsers();
+  function renderLoading() {
+    const view = $('#view');
+    if (view) view.innerHTML = `<div class="empty"><span class="emoji">⚽</span>正在连接服务器…</div>`;
+  }
+  async function init() {
     bindEvents();
     bindBracketWindowEvents();
+    renderLoading();
+    CLOUD.token = load(LS.token, null);
+    await refreshState();
+    if (!CLOUD.online) toast('暂时无法连接服务器，竞猜/登录功能不可用');
     render();
   }
   document.addEventListener('DOMContentLoaded', init);
