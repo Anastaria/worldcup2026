@@ -86,40 +86,35 @@
       var btn = document.getElementById('bgmToggle');
       if (!bgm || !btn) return;
       bgm.volume = 0.55;
-      var unmuted = false;
+      var started = false;
 
       function reflect() {
-        // 只有真正出声（未暂停且未静音）时才显示跳动动画
-        var audible = !bgm.paused && !bgm.ended && !bgm.muted;
-        btn.classList.toggle('playing', audible);
+        var playing = !bgm.paused && !bgm.ended;
+        btn.classList.toggle('playing', playing);
       }
 
-      // 进入页面即开始播放：浏览器允许“静音自动播放”，所以先静音起播，
-      // 播放时间线从进页面这一刻就开始走。
-      bgm.muted = true;
-      (function startMuted() {
+      // 从头开始播放
+      function playFromStart() {
+        try { bgm.currentTime = 0; } catch (e) {}
         var p = bgm.play();
-        if (p && typeof p.then === 'function') p.then(reflect).catch(function () {});
-      })();
+        if (p && typeof p.then === 'function') {
+          p.then(function () { started = true; reflect(); }).catch(function () {});
+        }
+      }
 
-      // 用户第一次触碰屏幕（含开屏页点击“跳过”或任意位置）立即解除静音出声
-      function unmute() {
-        if (unmuted) return;
-        unmuted = true;
-        bgm.muted = false;
-        if (bgm.paused) { var p = bgm.play(); if (p && p.catch) p.catch(function () {}); }
-        reflect();
+      // 用户第一次触碰屏幕（含开屏页点击“跳过”或任意位置）时从头开始播放
+      function onFirstGesture() {
+        if (started) return;
+        playFromStart();
       }
       ['pointerdown', 'touchstart', 'click', 'keydown'].forEach(function (ev) {
-        document.addEventListener(ev, unmute, { passive: true, capture: true });
+        document.addEventListener(ev, onFirstGesture, { passive: true, capture: true });
       });
 
       // 悬浮按钮：主动开/关
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
-        unmuted = true;
-        bgm.muted = false;
-        if (bgm.paused) { var p = bgm.play(); if (p && p.catch) p.catch(function () {}); }
+        if (bgm.paused) { started = true; var p = bgm.play(); if (p && p.catch) p.catch(function () {}); }
         else { bgm.pause(); }
         reflect();
       });
