@@ -68,8 +68,12 @@
   <!-- 轻提示 -->
   <div id="toast" class="toast"></div>
 
-  <!-- 世界杯主题曲（进入即播放） -->
-  <audio id="bgm" src="assets/theme.mp3" loop preload="auto"></audio>
+  <!-- 世界杯主题曲（进入即播放，优先 m4a/mp3，兼容 m4s） -->
+  <audio id="bgm" loop preload="auto">
+    <source src="assets/theme.m4a" type="audio/mp4" />
+    <source src="assets/theme.mp3" type="audio/mpeg" />
+    <source src="assets/theme.m4s" type="audio/mp4" />
+  </audio>
   <button id="bgmToggle" class="bgm-toggle" aria-label="背景音乐开关" title="主题曲">
     <span class="bgm-ico">🎵</span>
     <span class="bgm-eq"><i></i><i></i><i></i></span>
