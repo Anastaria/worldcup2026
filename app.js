@@ -260,15 +260,21 @@
   // ---------- 演示用户 ----------
   function seedDemoUsers() {
     if (getUsers().length > 0) return;
-    const demos = ['梅西铁粉', '老王看球', '足球小将', '冷门收割机', '客厅解说员'];
     const picks = ['home', 'draw', 'away'];
-    const users = demos.map((name, i) => {
+    const users = [];
+    // 榜首玩家：罗莉（命中所有已结算比赛，稳居第一）
+    const loriBets = {};
+    MATCHES.forEach(m => { if (!m.knockout) loriBets[m.id] = matchOutcome(m); });
+    users.push({ username: '罗莉', password: 'demo123', followed: [], bets: loriBets });
+    // 其余演示用户
+    const others = ['老王看球', '足球小将', '冷门收割机', '客厅解说员'];
+    others.forEach((name, i) => {
       const bets = {};
       MATCHES.forEach((m, idx) => {
         if (m.knockout) return; // 演示投注只覆盖小组赛
         if ((idx + i) % 4 !== 0) bets[m.id] = picks[(idx * 7 + i * 3) % 3];
       });
-      return { username: name, password: 'demo123', followed: [], bets };
+      users.push({ username: name, password: 'demo123', followed: [], bets });
     });
     setUsers(users);
   }
@@ -698,7 +704,7 @@
   function renderAuth() {
     const isLogin = state.authMode === 'login';
     return `<div class="card auth-card">
-        <h2>${isLogin ? '欢迎回来 👋' : '创建账号 🎉'}</h2>
+        <h2>${isLogin ? '一起加入罗莉球友俱乐部 ⚽' : '创建账号 🎉'}</h2>
         <p class="sub">${isLogin ? '登录后关注球队、参与竞猜、冲击积分榜' : '注册一个账号，开启你的世界杯竞猜之旅'}</p>
         <form id="authForm">
           <div class="field"><label>用户名</label>
