@@ -34,7 +34,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   margin: 0 auto;
   min-height: 100vh;
   position: relative;
-  background: var(--bg);
+  background:
+    linear-gradient(rgba(244,245,247,.84), rgba(244,245,247,.9)),
+    url('assets/app-bg.png') center top / cover no-repeat fixed;
 }
 
 /* 顶部栏 */
@@ -42,7 +44,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   position: sticky;
   top: 0;
   z-index: 30;
-  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%);
+  background:
+    linear-gradient(135deg, rgba(10,31,68,.72) 0%, rgba(13,42,92,.5) 100%),
+    url('assets/header-bg.png') center 38% / cover no-repeat;
   color: #fff;
   padding-top: env(safe-area-inset-top);
 }
@@ -54,9 +58,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   padding: 0 16px;
 }
 .brand { display: flex; align-items: center; gap: 10px; }
-.brand-cup { font-size: 26px; }
-.brand-title { font-weight: 800; font-size: 17px; letter-spacing: .5px; }
-.brand-sub { font-size: 11px; color: rgba(255,255,255,.65); margin-top: 1px; }
+.brand-cup { font-size: 26px; text-shadow: 0 1px 6px rgba(0,0,0,.5); }
+.brand-title { font-weight: 800; font-size: 17px; letter-spacing: .5px; text-shadow: 0 1px 6px rgba(0,0,0,.55); }
+.brand-sub { font-size: 11px; color: rgba(255,255,255,.85); margin-top: 1px; text-shadow: 0 1px 5px rgba(0,0,0,.5); }
 .header-user { font-size: 13px; }
 .header-user .uname { font-weight: 700; }
 .header-user .upts { color: var(--accent-2); font-weight: 800; }
@@ -322,6 +326,62 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .tab .tab-ico { font-size: 20px; filter: grayscale(1); opacity: .55; transition: all .15s; }
 .tab.active { color: var(--navy); }
 .tab.active .tab-ico { filter: none; opacity: 1; transform: translateY(-1px); }
+
+/* 进入图 / 启动页 */
+.splash {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden; opacity: 1; transition: opacity .55s ease;
+}
+.splash.hide { opacity: 0; pointer-events: none; }
+.splash-bg {
+  position: absolute; inset: 0;
+  background: url('assets/splash.png') center/cover no-repeat;
+  transform: scale(1.08); animation: splashZoom 6s ease-out forwards;
+}
+@keyframes splashZoom { to { transform: scale(1); } }
+.splash-mask {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(10,31,68,.55) 0%, rgba(10,31,68,.25) 45%, rgba(10,31,68,.78) 100%);
+}
+.splash-content {
+  position: relative; z-index: 2; width: 100%; max-width: 480px;
+  padding: 0 28px; text-align: center; color: #fff;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+}
+.splash-cup { font-size: 64px; animation: splashPop .7s cubic-bezier(.18,.89,.32,1.28) both; filter: drop-shadow(0 6px 14px rgba(0,0,0,.4)); }
+@keyframes splashPop { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.splash-title {
+  margin: 0; font-size: 34px; font-weight: 900; letter-spacing: 2px;
+  text-shadow: 0 4px 18px rgba(0,0,0,.5);
+  animation: splashUp .7s .15s ease both;
+}
+.splash-slogan {
+  margin: 0; font-size: 19px; font-weight: 800; letter-spacing: 8px; padding-left: 8px;
+  color: #ffd66b; text-shadow: 0 2px 10px rgba(0,0,0,.5);
+  animation: splashUp .7s .3s ease both;
+}
+.splash-quote {
+  margin: 18px 0 0; font-size: 13.5px; line-height: 1.8; color: rgba(255,255,255,.92);
+  min-height: 70px; transition: opacity .28s ease; text-shadow: 0 2px 8px rgba(0,0,0,.5);
+  animation: splashUp .7s .45s ease both;
+}
+.splash-quote span { display: inline-block; margin-top: 6px; font-size: 12px; color: #ffd66b; font-weight: 700; }
+@keyframes splashUp { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.splash-loading { display: flex; gap: 7px; margin-top: 16px; }
+.splash-loading span {
+  width: 8px; height: 8px; border-radius: 50%; background: #fff; opacity: .5;
+  animation: splashDot 1.2s infinite ease-in-out;
+}
+.splash-loading span:nth-child(2) { animation-delay: .2s; }
+.splash-loading span:nth-child(3) { animation-delay: .4s; }
+@keyframes splashDot { 0%,100% { opacity: .35; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-5px); } }
+.splash-skip {
+  position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%);
+  background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.35);
+  border-radius: 20px; padding: 7px 22px; font-size: 13px; font-weight: 700;
+  backdrop-filter: blur(4px); cursor: pointer; z-index: 3;
+}
 
 /* 我的赛程 - 月历视图 */
 .cal-month { margin-bottom: 18px; }
