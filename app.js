@@ -30,7 +30,7 @@
     scheduleFilter: 'all', // all | group | knockout | upcoming | mine
     teamGroupFilter: 'all',
     followView: null,      // schedule | teams（null 时按是否已关注自动决定）
-    rankView: 'users',     // users | teams
+    rankView: 'teams',     // teams | users
     authMode: 'login',     // login | register
     authError: '',
     adminOpen: false,
@@ -518,8 +518,8 @@
   // ---------- 渲染：积分榜（玩家 / 球队） ----------
   function renderRank() {
     const toggle = `<div class="filter-bar">
-      <button class="chip ${state.rankView === 'users' ? 'active' : ''}" data-rankview="users">玩家榜</button>
-      <button class="chip ${state.rankView === 'teams' ? 'active' : ''}" data-rankview="teams">球队榜（各小组）</button></div>`;
+      <button class="chip ${state.rankView === 'teams' ? 'active' : ''}" data-rankview="teams">球队榜（各小组）</button>
+      <button class="chip ${state.rankView === 'users' ? 'active' : ''}" data-rankview="users">玩家榜</button></div>`;
     if (state.rankView === 'teams') {
       return `<div class="section-title">🏅 球队积分榜 <span class="count">各小组</span></div>` + toggle + renderTeamStandings();
     }
