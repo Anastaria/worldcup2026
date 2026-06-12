@@ -184,6 +184,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   box-shadow: var(--shadow); font-size: 13px; font-weight: 600; color: var(--muted);
 }
 .chip.active { background: var(--navy); color: #fff; }
+.fold-chip { background: #fff4e0; color: #9a5b00; }
+.fold-chip.active { background: #e08600; color: #fff; }
 
 .group-grid {
   display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
@@ -579,6 +581,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.35);
   border-radius: 20px; padding: 7px 22px; font-size: 13px; font-weight: 700;
   backdrop-filter: blur(4px); cursor: pointer; z-index: 3;
+}
+.splash-disclaimer {
+  position: fixed; right: 14px; bottom: 14px; z-index: 4;
+  font-size: 11px; color: rgba(255,255,255,.78); font-weight: 600;
+  background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.2);
+  border-radius: 12px; padding: 5px 10px; backdrop-filter: blur(4px);
+  max-width: 70%; text-align: right; line-height: 1.4;
 }
 
 /* 我的赛程 - 月历视图 */

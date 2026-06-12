@@ -29,6 +29,7 @@
     tab: 'schedule',
     scheduleFilter: 'all', // all | group | knockout | upcoming | mine
     scheduleView: 'list',  // list | bracket（赛程：列表 / 对阵图）
+    hideFinished: false,   // 赛程列表：是否折叠已完成的比赛
     bracketZoom: 0.5,      // 对阵图缩放比例
     teamGroupFilter: 'all',
     followView: null,      // schedule | teams（null 时按是否已关注自动决定）
@@ -356,14 +357,25 @@
     if (state.scheduleFilter === 'upcoming') list = list.filter(m => matchStatus(m) === 'upcoming');
     if (state.scheduleFilter === 'mine') list = list.filter(m => followsMatch(m, followed));
 
+    const finishedCount = list.filter(isSettled).length;
+    if (state.hideFinished) list = list.filter(m => !isSettled(m));
+
+    const foldBtn = finishedCount > 0
+      ? `<button class="chip fold-chip ${state.hideFinished ? 'active' : ''}" data-foldfin>
+          ${state.hideFinished ? `👁️ 展开已完成（${finishedCount}）` : `📂 折叠已完成（${finishedCount}）`}</button>`
+      : '';
+
     const bar = `<div class="filter-bar">${filters.map(f =>
       `<button class="chip ${state.scheduleFilter === f.k ? 'active' : ''}" data-sfilter="${f.k}">${f.label}</button>`
-    ).join('')}</div>
+    ).join('')}${foldBtn}</div>
     <div style="font-size:11px;color:var(--muted);margin:0 2px 6px">🕐 北京时间 · 共 ${MATCHES.length} 场（72 小组赛 + 32 淘汰赛）</div>`;
 
     if (list.length === 0) {
-      return modeBar + bar + emptyBlock('🗓️', state.scheduleFilter === 'mine'
-        ? '你还没有关注球队<br/>去「关注」页选择喜欢的球队吧' : '暂无比赛');
+      const msg = state.hideFinished
+        ? '已完成的比赛已折叠<br/>暂无进行中或未开赛的比赛'
+        : (state.scheduleFilter === 'mine'
+          ? '你还没有关注球队<br/>去「关注」页选择喜欢的球队吧' : '暂无比赛');
+      return modeBar + bar + emptyBlock('🗓️', msg);
     }
     const byDate = {};
     list.forEach(m => { const k = fmtDateKey(m.kickoff); (byDate[k] = byDate[k] || []).push(m); });
@@ -1148,6 +1160,7 @@
     $('#view').addEventListener('click', e => {
       const sf = e.target.closest('[data-sfilter]');
       if (sf) { state.scheduleFilter = sf.dataset.sfilter; return render(); }
+      if (e.target.closest('[data-foldfin]')) { state.hideFinished = !state.hideFinished; return render(); }
       const gf = e.target.closest('[data-gfilter]');
       if (gf) { state.teamGroupFilter = gf.dataset.gfilter; return render(); }
       const fv = e.target.closest('[data-followview]');
