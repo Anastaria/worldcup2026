@@ -108,6 +108,71 @@ function buildMatches() {
   return matches;
 }
 
-const MATCHES = buildMatches();
+// 生成淘汰赛赛程（对阵以"槽位"表示，运行时根据成绩自动解析为具体球队）
+function buildKnockout() {
+  const list = [];
+  let vc = 0;
+  const venue = () => VENUES[vc++ % VENUES.length];
+  const g = (group, rank) => ({ kind: 'group', group, rank });
+  const win = (match) => ({ kind: 'winner', match });
+  const lose = (match) => ({ kind: 'loser', match });
+
+  function add(id, stage, bn, bi, homeSlot, awaySlot, date, hour) {
+    const hh = String(hour).padStart(2, '0');
+    const r = seededScore(id);
+    if (r.home === r.away) r.home += 1; // 淘汰赛必分胜负
+    list.push({
+      id, knockout: true, stage, bn, bi,
+      homeSlot, awaySlot,
+      kickoff: `2026-${date}T${hh}:00:00`,
+      venue: venue(),
+      result: r,
+    });
+  }
+
+  // 1/16 决赛（32 强）：12 个小组第1、第2 + 8 个小组第3
+  const r32Slots = [
+    g('A', 1), g('B', 2), g('C', 1), g('D', 2), g('E', 1), g('F', 2),
+    g('G', 1), g('H', 2), g('I', 1), g('J', 2), g('K', 1), g('L', 2),
+    g('A', 2), g('B', 1), g('C', 2), g('D', 1), g('E', 2), g('F', 1),
+    g('G', 2), g('H', 1), g('I', 2), g('J', 1), g('K', 2), g('L', 1),
+    g('A', 3), g('B', 3), g('C', 3), g('D', 3), g('E', 3), g('F', 3),
+    g('G', 3), g('H', 3),
+  ];
+  const r32Days = ['06-28', '06-28', '06-28', '06-29', '06-29', '06-29', '06-30', '06-30',
+    '06-30', '07-01', '07-01', '07-01', '07-02', '07-02', '07-03', '07-03'];
+  const knHours = [13, 17, 21];
+  for (let i = 0; i < 16; i++) {
+    add(`R32-${i + 1}`, '1/16 决赛', '1/16', i + 1,
+      r32Slots[i * 2], r32Slots[i * 2 + 1], r32Days[i], knHours[i % knHours.length]);
+  }
+
+  // 1/8 决赛（16 强）
+  const r16Days = ['07-04', '07-04', '07-05', '07-05', '07-06', '07-06', '07-07', '07-07'];
+  for (let i = 0; i < 8; i++) {
+    add(`R16-${i + 1}`, '1/8 决赛', '1/8', i + 1,
+      win(`R32-${i * 2 + 1}`), win(`R32-${i * 2 + 2}`), r16Days[i], knHours[i % 2 ? 1 : 2]);
+  }
+
+  // 1/4 决赛
+  const qfDays = ['07-09', '07-09', '07-10', '07-10'];
+  for (let i = 0; i < 4; i++) {
+    add(`QF-${i + 1}`, '1/4 决赛', '1/4', i + 1,
+      win(`R16-${i * 2 + 1}`), win(`R16-${i * 2 + 2}`), qfDays[i], i % 2 ? 21 : 17);
+  }
+
+  // 半决赛
+  add('SF-1', '半决赛', '半决赛', 1, win('QF-1'), win('QF-2'), '07-14', 21);
+  add('SF-2', '半决赛', '半决赛', 2, win('QF-3'), win('QF-4'), '07-15', 21);
+
+  // 季军赛 & 决赛
+  add('3RD', '季军赛', '季军赛', 1, lose('SF-1'), lose('SF-2'), '07-18', 17);
+  add('FINAL', '决赛', '决赛', 1, win('SF-1'), win('SF-2'), '07-19', 21);
+
+  return list;
+}
+
+const MATCHES = buildMatches().concat(buildKnockout())
+  .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
 
 window.WC_DATA = { TEAMS, TEAM_LIST, GROUPS, GROUP_NAMES, MATCHES, VENUES };
