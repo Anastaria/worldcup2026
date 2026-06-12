@@ -383,13 +383,13 @@
   // 两侧对称对阵图的轮次构成（按官方对阵树推导，自上而下）
   const BRACKET = {
     left: {
-      r32: ['R32-1', 'R32-3', 'R32-2', 'R32-5', 'R32-11', 'R32-12', 'R32-9', 'R32-10'],
+      r32: ['R32-3', 'R32-6', 'R32-1', 'R32-4', 'R32-12', 'R32-11', 'R32-10', 'R32-9'],
       r16: ['R16-1', 'R16-2', 'R16-5', 'R16-6'],
       qf: ['QF-1', 'QF-2'],
       sf: ['SF-1'],
     },
     right: {
-      r32: ['R32-4', 'R32-6', 'R32-7', 'R32-8', 'R32-14', 'R32-16', 'R32-13', 'R32-15'],
+      r32: ['R32-2', 'R32-5', 'R32-7', 'R32-8', 'R32-15', 'R32-14', 'R32-13', 'R32-16'],
       r16: ['R16-3', 'R16-4', 'R16-7', 'R16-8'],
       qf: ['QF-3', 'QF-4'],
       sf: ['SF-2'],
@@ -434,7 +434,37 @@
             </div>
           </div>
         </div>
+        ${renderBracketGroups()}
       </div>`;
+  }
+
+  // 对阵图下方：各小组球队一览（含官方排名提示）
+  function renderBracketGroups() {
+    const followed = new Set(currentFollowed());
+    let html = `<div class="bk-groups">
+      <div class="bk-groups-h">📋 小组球队一览<span class="bk-groups-sub">前两名直接晋级，8 个最佳小组第三名也可出线</span></div>
+      <div class="bk-groups-grid">`;
+    GROUPS.forEach(g => {
+      const table = liveGroupTable(g.name); // 已按名次排序的队伍
+      const ranked = table && table.length ? table.map(r => r.team) : g.teams.slice();
+      html += `<div class="bk-grp-card"><div class="bk-grp-name">${g.name} 组</div>`;
+      ranked.forEach((team, i) => {
+        const zone = i < 2 ? 'q1' : (i === 2 ? 'q3' : '');
+        const mine = followed.has(team) ? 'mine' : '';
+        html += `<div class="bk-grp-row ${zone} ${mine}">
+          <span class="bk-grp-rk">${i + 1}</span>
+          <span class="bk-grp-flag">${flag(team)}</span>
+          <span class="bk-grp-tm">${team}</span></div>`;
+      });
+      html += `</div>`;
+    });
+    html += `</div>
+      <div class="bk-groups-legend">
+        <span><i class="lg q1"></i>前两名（直接晋级）</span>
+        <span><i class="lg q3"></i>小组第三（争最佳第三）</span>
+        <span><i class="lg mine"></i>我关注的球队</span>
+      </div></div>`;
+    return html;
   }
 
   function bracketSide(side) {

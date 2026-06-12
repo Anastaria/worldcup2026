@@ -427,6 +427,30 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .bk-third { width: 160px; margin-top: 16px; }
 .bk-third-h { font-size: 11px; color: rgba(255,255,255,.85); text-align: center; margin-bottom: 5px; font-weight: 700; }
 
+/* 对阵图下方：各小组球队一览 */
+.bk-groups { margin-top: 16px; }
+.bk-groups-h { font-size: 15px; font-weight: 800; color: var(--text); margin-bottom: 10px; }
+.bk-groups-sub { display: block; font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+.bk-groups-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.bk-grp-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 9px 10px; box-shadow: 0 2px 8px rgba(10,31,68,.05); }
+.bk-grp-name { font-size: 12px; font-weight: 800; color: var(--navy); margin-bottom: 7px; }
+.bk-grp-row { display: flex; align-items: center; gap: 6px; padding: 4px 5px; border-radius: 8px; font-size: 12.5px; }
+.bk-grp-rk { width: 16px; text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); }
+.bk-grp-flag { font-size: 15px; }
+.bk-grp-tm { font-weight: 600; color: var(--text); }
+.bk-grp-row.q1 { background: rgba(34,160,90,.12); }
+.bk-grp-row.q1 .bk-grp-rk { color: #1e9e57; }
+.bk-grp-row.q3 { background: rgba(245,166,35,.14); }
+.bk-grp-row.q3 .bk-grp-rk { color: #d98a00; }
+.bk-grp-row.mine { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.bk-grp-row.mine .bk-grp-tm { color: var(--accent); font-weight: 800; }
+.bk-groups-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; font-size: 11px; color: var(--muted); }
+.bk-groups-legend span { display: flex; align-items: center; gap: 5px; }
+.bk-groups-legend i.lg { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+.bk-groups-legend i.lg.q1 { background: rgba(34,160,90,.4); }
+.bk-groups-legend i.lg.q3 { background: rgba(245,166,35,.45); }
+.bk-groups-legend i.lg.mine { background: #fff; box-shadow: inset 0 0 0 1.5px var(--accent); }
+
 /* 比分竞猜 */
 .scorebet-card { padding: 11px 13px; margin-bottom: 9px; }
 .sb-top { font-size: 11px; color: var(--muted); margin-bottom: 9px; display: flex; align-items: center; }
