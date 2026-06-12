@@ -337,17 +337,18 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   position: fixed; inset: 0; z-index: 9999;
   display: flex; align-items: center; justify-content: center;
   overflow: hidden; opacity: 1; transition: opacity .55s ease;
+  background: linear-gradient(160deg, #0a1f44 0%, #0d2a5c 50%, #13371b 100%);
 }
 .splash.hide { opacity: 0; pointer-events: none; }
 .splash-bg {
   position: absolute; inset: 0;
   background: url('assets/splash.png') center/cover no-repeat;
-  transform: scale(1.08); animation: splashZoom 6s ease-out forwards;
+  transform: scale(1.08); animation: splashZoom 7.5s ease-out forwards;
 }
 @keyframes splashZoom { to { transform: scale(1); } }
 .splash-mask {
   position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(10,31,68,.55) 0%, rgba(10,31,68,.25) 45%, rgba(10,31,68,.78) 100%);
+  background: linear-gradient(180deg, rgba(10,31,68,.72) 0%, rgba(10,31,68,.5) 45%, rgba(10,31,68,.88) 100%);
 }
 .splash-content {
   position: relative; z-index: 2; width: 100%; max-width: 480px;

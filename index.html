@@ -74,7 +74,7 @@
       if (!splash) return;
       var slides = splash.querySelectorAll('.quote-slide');
       var dots = splash.querySelectorAll('#splashDots span');
-      var STEP = 2000; // 每句 2 秒
+      var STEP = 2500; // 每句 2.5 秒
       var i = 0, timers = [];
       function show(n) {
         slides.forEach(function (s, k) { s.classList.toggle('on', k === n); });
