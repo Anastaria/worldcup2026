@@ -1,0 +1,307 @@
+:root {
+  --navy: #0a1f44;
+  --navy-2: #112a5c;
+  --accent: #00c2a8;
+  --accent-2: #ffd23f;
+  --danger: #ff5d5d;
+  --win: #2ecc71;
+  --draw: #f5a623;
+  --lose: #ff6b6b;
+  --bg: #f3f5f9;
+  --card: #ffffff;
+  --text: #1b2536;
+  --muted: #8a93a6;
+  --line: #eceff5;
+  --shadow: 0 6px 20px rgba(16, 32, 70, 0.08);
+  --radius: 16px;
+  --tabbar-h: 62px;
+  --header-h: 60px;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+
+#app {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  position: relative;
+  background: var(--bg);
+}
+
+/* 顶部栏 */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%);
+  color: #fff;
+  padding-top: env(safe-area-inset-top);
+}
+.header-inner {
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-cup { font-size: 26px; }
+.brand-title { font-weight: 800; font-size: 17px; letter-spacing: .5px; }
+.brand-sub { font-size: 11px; color: rgba(255,255,255,.65); margin-top: 1px; }
+.header-user { font-size: 13px; }
+.header-user .uname { font-weight: 700; }
+.header-user .upts { color: var(--accent-2); font-weight: 800; }
+.header-login-btn {
+  background: rgba(255,255,255,.16);
+  color: #fff; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+}
+
+/* 主体 */
+.view {
+  padding: 14px 14px calc(var(--tabbar-h) + 24px);
+  min-height: calc(100vh - var(--header-h));
+}
+
+/* 通用 */
+.section-title { font-size: 15px; font-weight: 800; margin: 6px 2px 12px; display: flex; align-items: center; gap: 8px; }
+.section-title .count { font-size: 12px; color: var(--muted); font-weight: 600; }
+.muted { color: var(--muted); }
+.empty {
+  text-align: center; color: var(--muted); padding: 48px 20px; line-height: 1.7;
+}
+.empty .emoji { font-size: 40px; display: block; margin-bottom: 8px; }
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+/* 日期分组吸顶条 */
+.date-head {
+  position: sticky;
+  top: var(--header-h);
+  z-index: 10;
+  background: var(--bg);
+  padding: 12px 2px 8px;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--navy);
+  display: flex; align-items: center; gap: 8px;
+}
+.date-head .dow { color: var(--muted); font-weight: 600; }
+
+/* 比赛卡片 */
+.match {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 13px 14px;
+  margin-bottom: 11px;
+}
+.match-top {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; color: var(--muted); margin-bottom: 10px;
+}
+.match-top .grp { background: var(--bg); color: var(--navy); font-weight: 700; padding: 2px 8px; border-radius: 8px; }
+.badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 8px; }
+.badge.live { background: #ffecec; color: var(--danger); }
+.badge.fin { background: #eef1f6; color: var(--muted); }
+.badge.up { background: #e7faf6; color: #009e87; }
+
+.match-body { display: flex; align-items: center; }
+.team {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0;
+}
+.team.away { }
+.team .flag { font-size: 30px; line-height: 1; }
+.team .tname { font-size: 13px; font-weight: 700; text-align: center; white-space: nowrap; }
+.center {
+  width: 92px; text-align: center; flex-shrink: 0;
+}
+.center .score { font-size: 22px; font-weight: 800; letter-spacing: 1px; }
+.center .vs { font-size: 16px; font-weight: 800; color: var(--muted); }
+.center .time { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.center .venue { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+.match-foot { margin-top: 11px; border-top: 1px dashed var(--line); padding-top: 10px; }
+
+/* 竞猜按钮 */
+.bet-row { display: flex; gap: 8px; }
+.bet-btn {
+  flex: 1; padding: 9px 4px; border-radius: 12px; background: var(--bg);
+  font-weight: 700; font-size: 13px; color: var(--text); border: 2px solid transparent;
+  transition: all .15s;
+}
+.bet-btn small { display: block; font-size: 10px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+.bet-btn.sel { background: var(--navy); color: #fff; }
+.bet-btn.sel small { color: rgba(255,255,255,.7); }
+.bet-btn.win.sel { background: var(--win); }
+.bet-btn.draw.sel { background: var(--draw); }
+.bet-btn.lose.sel { background: var(--lose); }
+.bet-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+.bet-result { font-size: 12px; display: flex; align-items: center; justify-content: space-between; }
+.pill { padding: 3px 9px; border-radius: 20px; font-weight: 700; font-size: 11px; }
+.pill.ok { background: #e7f9ef; color: var(--win); }
+.pill.no { background: #ffeded; color: var(--lose); }
+.pill.wait { background: #eef1f6; color: var(--muted); }
+.pill.none { background: #fff6e0; color: #b8860b; }
+
+/* 关注球队 */
+.filter-bar { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 12px; }
+.filter-bar::-webkit-scrollbar { display: none; }
+.chip {
+  flex-shrink: 0; padding: 6px 13px; border-radius: 20px; background: var(--card);
+  box-shadow: var(--shadow); font-size: 13px; font-weight: 600; color: var(--muted);
+}
+.chip.active { background: var(--navy); color: #fff; }
+
+.group-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+}
+.team-cell {
+  background: var(--card); border-radius: 14px; box-shadow: var(--shadow);
+  padding: 12px; display: flex; align-items: center; gap: 10px; position: relative;
+  border: 2px solid transparent; transition: all .15s;
+}
+.team-cell.followed { border-color: var(--accent); }
+.team-cell .flag { font-size: 26px; }
+.team-cell .info { min-width: 0; }
+.team-cell .tname { font-weight: 700; font-size: 14px; }
+.team-cell .grp { font-size: 11px; color: var(--muted); }
+.team-cell .star { position: absolute; right: 10px; top: 10px; font-size: 16px; }
+
+.group-block { margin-bottom: 18px; }
+.group-block h3 {
+  font-size: 14px; font-weight: 800; margin: 0 2px 10px; color: var(--navy);
+  display: flex; align-items: center; gap: 8px;
+}
+.group-block h3 .tag { background: var(--accent); color: #fff; border-radius: 8px; padding: 1px 9px; font-size: 12px; }
+
+/* 积分榜 */
+.rank-item {
+  display: flex; align-items: center; gap: 12px; padding: 13px 14px;
+  background: var(--card); border-radius: 14px; box-shadow: var(--shadow); margin-bottom: 9px;
+}
+.rank-item.me { border: 2px solid var(--accent-2); }
+.rank-no { width: 30px; text-align: center; font-weight: 800; font-size: 16px; color: var(--muted); }
+.rank-no.top1 { color: #f5b301; } .rank-no.top2 { color: #9aa6b8; } .rank-no.top3 { color: #cd7f32; }
+.rank-avatar {
+  width: 38px; height: 38px; border-radius: 50%; background: var(--navy); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px;
+}
+.rank-main { flex: 1; min-width: 0; }
+.rank-name { font-weight: 700; }
+.rank-name .me-tag { font-size: 10px; background: var(--accent-2); color: #5a4500; border-radius: 6px; padding: 1px 6px; margin-left: 6px; font-weight: 800; }
+.rank-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.rank-pts { text-align: right; }
+.rank-pts .n { font-size: 20px; font-weight: 800; color: var(--navy); }
+.rank-pts .u { font-size: 11px; color: var(--muted); }
+
+/* 统计卡 */
+.stat-row { display: flex; gap: 10px; margin-bottom: 14px; }
+.stat {
+  flex: 1; background: var(--card); border-radius: 14px; box-shadow: var(--shadow);
+  padding: 14px 8px; text-align: center;
+}
+.stat .n { font-size: 22px; font-weight: 800; color: var(--navy); }
+.stat .l { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+/* 表单 / 我的 */
+.auth-card { padding: 20px 18px; }
+.auth-card h2 { margin: 0 0 4px; font-size: 19px; }
+.auth-card p.sub { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.field input {
+  width: 100%; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--line);
+  font-size: 15px; background: #fafbfd; outline: none; transition: border .15s;
+}
+.field input:focus { border-color: var(--accent); background: #fff; }
+.btn-primary {
+  width: 100%; padding: 13px; border-radius: 12px; background: var(--navy); color: #fff;
+  font-weight: 800; font-size: 15px; transition: opacity .15s;
+}
+.btn-primary:active { opacity: .85; }
+.btn-ghost {
+  width: 100%; padding: 12px; border-radius: 12px; background: var(--card); color: var(--navy);
+  font-weight: 700; font-size: 14px; box-shadow: var(--shadow); margin-top: 10px;
+}
+.switch-line { text-align: center; margin-top: 16px; font-size: 13px; color: var(--muted); }
+.switch-line a { color: var(--accent); font-weight: 700; text-decoration: none; }
+.form-err { color: var(--danger); font-size: 12px; margin-top: -6px; margin-bottom: 10px; min-height: 14px; }
+
+.profile-head {
+  background: linear-gradient(135deg, var(--navy), var(--navy-2)); color: #fff;
+  border-radius: var(--radius); padding: 20px; margin-bottom: 14px; box-shadow: var(--shadow);
+}
+.profile-head .pavatar {
+  width: 56px; height: 56px; border-radius: 50%; background: var(--accent);
+  display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; margin-bottom: 12px;
+}
+.profile-head .pname { font-size: 20px; font-weight: 800; }
+.profile-head .pmeta { font-size: 12px; color: rgba(255,255,255,.7); margin-top: 4px; }
+.profile-stats { display: flex; gap: 18px; margin-top: 16px; }
+.profile-stats .ps .n { font-size: 22px; font-weight: 800; color: var(--accent-2); }
+.profile-stats .ps .l { font-size: 11px; color: rgba(255,255,255,.7); }
+
+.list-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; background: var(--card); border-radius: 12px; box-shadow: var(--shadow); margin-bottom: 10px;
+  font-weight: 600;
+}
+.list-row .r { color: var(--muted); font-weight: 700; }
+.list-row.danger { color: var(--danger); justify-content: center; }
+
+/* 日历项 */
+.cal-day { margin-bottom: 6px; }
+.cal-match {
+  display: flex; align-items: center; gap: 10px; padding: 11px 14px;
+  background: var(--card); border-radius: 12px; box-shadow: var(--shadow); margin-bottom: 9px;
+}
+.cal-time { font-weight: 800; color: var(--navy); font-size: 13px; width: 44px; flex-shrink: 0; }
+.cal-info { flex: 1; min-width: 0; }
+.cal-teams { font-weight: 700; font-size: 14px; }
+.cal-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.cal-foll { color: var(--accent); }
+
+/* toast */
+.toast {
+  position: fixed; left: 50%; bottom: calc(var(--tabbar-h) + 30px); transform: translateX(-50%) translateY(20px);
+  background: rgba(20,30,50,.92); color: #fff; padding: 10px 18px; border-radius: 22px;
+  font-size: 13px; font-weight: 600; opacity: 0; pointer-events: none; transition: all .25s; z-index: 100;
+  max-width: 80%; text-align: center;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* 底部导航 */
+.tabbar {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 480px; height: var(--tabbar-h);
+  background: #fff; border-top: 1px solid var(--line);
+  display: flex; z-index: 40; padding-bottom: env(safe-area-inset-bottom);
+}
+.tab {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  color: var(--muted); font-size: 11px; font-weight: 600;
+}
+.tab .tab-ico { font-size: 20px; filter: grayscale(1); opacity: .55; transition: all .15s; }
+.tab.active { color: var(--navy); }
+.tab.active .tab-ico { filter: none; opacity: 1; transform: translateY(-1px); }
+
+@media (min-width: 481px) {
+  body { padding: 0; }
+  #app { box-shadow: 0 0 40px rgba(0,0,0,.08); }
+}

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1f44" />
+  <title>2026 世界杯 · 竞猜</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- 顶部栏 -->
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="brand">
+          <span class="brand-cup">🏆</span>
+          <div class="brand-text">
+            <div class="brand-title">2026 世界杯</div>
+            <div class="brand-sub" id="headerSub">美国 · 加拿大 · 墨西哥</div>
+          </div>
+        </div>
+        <div class="header-user" id="headerUser"></div>
+      </div>
+    </header>
+
+    <!-- 主内容 -->
+    <main id="view" class="view"></main>
+
+    <!-- 底部导航 -->
+    <nav class="tabbar" id="tabbar">
+      <button class="tab" data-tab="schedule"><span class="tab-ico">📅</span><span>赛程</span></button>
+      <button class="tab" data-tab="follow"><span class="tab-ico">⭐</span><span>关注</span></button>
+      <button class="tab" data-tab="bet"><span class="tab-ico">🎯</span><span>竞猜</span></button>
+      <button class="tab" data-tab="rank"><span class="tab-ico">🏅</span><span>积分榜</span></button>
+      <button class="tab" data-tab="me"><span class="tab-ico">👤</span><span>我的</span></button>
+    </nav>
+  </div>
+
+  <!-- 轻提示 -->
+  <div id="toast" class="toast"></div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
