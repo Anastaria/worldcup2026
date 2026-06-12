@@ -369,7 +369,7 @@
     Object.keys(byDate).sort().forEach(dateKey => {
       const { main, dow } = fmtDateLabel(dateKey);
       html += `<div class="date-head">${main}<span class="dow">${dow}</span></div>`;
-      byDate[dateKey].forEach(m => { html += matchCard(m, user, followed); });
+      byDate[dateKey].forEach(m => { html += matchCard(m, user, followed, true); });
     });
     return html;
   }
@@ -548,7 +548,7 @@
     </div>`;
   }
 
-  function matchCard(m, user, followedSet) {
+  function matchCard(m, user, followedSet, allModes) {
     const t = teamsOf(m);
     const known = !!t.home.name && !!t.away.name;
     const r = getMatchResult(m);
@@ -564,7 +564,12 @@
     let foot = '';
     const bettable = !isSettled(m) && matchStatus(m) === 'upcoming' && known;
     if (bettable) {
-      foot = `<div class="match-foot">${betRow(m, t, pick)}</div>`;
+      let segs = `<div class="bet-seg"><div class="seg-l">胜平负 <i>+${POINTS.wdl}</i></div>${betRow(m, t, pick)}</div>`;
+      if (allModes) {
+        segs += `<div class="bet-seg"><div class="seg-l">比分 <i>+${POINTS.score}</i></div>${scoreInputs(m, t, user && user.scoreBets)}</div>`;
+        segs += `<div class="bet-seg"><div class="seg-l">总进球 <i>+${POINTS.goals}</i></div>${goalButtons(m, user && user.goalBets)}</div>`;
+      }
+      foot = `<div class="match-foot">${segs}</div>`;
     } else if (!known && m.knockout && !showsScore(m)) {
       foot = `<div class="match-foot"><div class="bet-result"><span class="muted">对阵确定后可竞猜</span></div></div>`;
     } else if (showsScore(m)) {
@@ -591,6 +596,26 @@
     const away = opt('away', 'lose', `${t.away.name}胜`);
     if (m.knockout) return `<div class="bet-row">${home}${away}</div>`; // 淘汰赛无平局
     return `<div class="bet-row">${home}${opt('draw', 'draw', '平局')}${away}</div>`;
+  }
+
+  // 比分输入行（赛程内联 / 比分竞猜栏目共用）
+  function scoreInputs(m, t, scoreBets) {
+    const cur = scoreBets && scoreBets[m.id];
+    return `<div class="sb-row sb-inline">
+      <span class="sb-team">${flag(t.home.name)} ${t.home.name}</span>
+      <input class="sb-in" data-scorebet="${m.id}" data-sk="home" type="number" min="0" max="20" inputmode="numeric" value="${cur ? cur.home : ''}" placeholder="-" />
+      <span class="sb-colon">:</span>
+      <input class="sb-in" data-scorebet="${m.id}" data-sk="away" type="number" min="0" max="20" inputmode="numeric" value="${cur ? cur.away : ''}" placeholder="-" />
+      <span class="sb-team sb-team-r">${t.away.name} ${flag(t.away.name)}</span>
+      ${cur ? `<button class="sb-clear" data-scoreclear="${m.id}">清除</button>` : ''}
+    </div>`;
+  }
+  // 总进球按钮组（赛程内联 / 总进球栏目共用）
+  function goalButtons(m, goalBets) {
+    const cur = goalBets && goalBets[m.id];
+    const opts = [0, 1, 2, 3, 4, 5, 6];
+    return `<div class="gb-opts">${opts.map(n =>
+      `<button class="goal-btn ${cur === n ? 'sel' : ''}" data-goalbet="${m.id}" data-goals="${n}">${n === 6 ? '6+' : n}</button>`).join('')}</div>`;
   }
 
   function pickLabel(m, t, pick) {
@@ -766,9 +791,10 @@
     return byDate;
   }
 
+  const GUEST_USER = { bets: {}, scoreBets: {}, goalBets: {}, championBet: null, followed: [] };
   function renderBet() {
-    const user = currentUser();
-    if (!user) return loginPrompt('登录后参与各类竞猜（胜平负 / 比分 / 总进球 / 冠军），冲击积分榜！');
+    const realUser = currentUser();
+    const user = realUser || GUEST_USER;
     const view = state.betView || 'wdl';
     const tabs = [
       ['wdl', '胜平负', `+${POINTS.wdl}`],
@@ -779,11 +805,17 @@
     const toggle = `<div class="filter-bar">${tabs.map(([k, l]) =>
       `<button class="chip ${view === k ? 'active' : ''}" data-betview="${k}">${l}</button>`).join('')}</div>`;
     const stats = userStats(user);
-    const head = `<div class="stat-row">
+    let head = '';
+    if (!realUser) {
+      head += `<div class="card guest-banner">👀 浏览模式：可自由查看各类竞猜玩法，<a href="#" id="goLogin">登录 / 注册</a> 后即可提交并计入积分。</div>`;
+    } else {
+      head += `<div class="stat-row">
         <div class="stat"><div class="n">${stats.points}</div><div class="l">我的积分</div></div>
         <div class="stat"><div class="n">${stats.wdl.correct + stats.score.correct + stats.goals.correct}</div><div class="l">已猜中</div></div>
         <div class="stat"><div class="n">${stats.wdl.total + stats.score.total + stats.goals.total + (stats.champion.picked ? 1 : 0)}</div><div class="l">已参与</div></div>
-      </div>` + toggle;
+      </div>`;
+    }
+    head += toggle;
     let body;
     if (view === 'score') body = renderScoreBet(user, stats);
     else if (view === 'goals') body = renderGoalBet(user, stats);
