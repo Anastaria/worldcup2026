@@ -19,6 +19,7 @@
     users: 'wc_users',        // [{username, password, followed:[], bets:{matchId:'home'|'draw'|'away'}}]
     session: 'wc_session',    // username
     results: 'wc_results',    // {matchId:{home,away}} 录入的真实比分（覆盖演示比分）
+    guestFollows: 'wc_guest_follows', // 未登录时关注的球队
   };
   const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
   const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
@@ -226,6 +227,11 @@
     mutator(u);
     setUsers(users);
   }
+  // 当前关注的球队（已登录用账号，未登录用游客本地存储）
+  function currentFollowed() {
+    const u = currentUser();
+    return u ? u.followed : load(LS.guestFollows, []);
+  }
 
   // ---------- 积分 ----------
   const POINTS_CORRECT = 3;
@@ -268,7 +274,7 @@
   // ---------- 渲染：赛程 ----------
   function renderSchedule() {
     const user = currentUser();
-    const followed = new Set(user ? user.followed : []);
+    const followed = new Set(currentFollowed());
     const filters = [
       { k: 'all', label: '全部' },
       { k: 'group', label: '小组赛' },
@@ -393,17 +399,19 @@
       <span class="pill wait">比赛进行中</span></div>`;
   }
 
-  // ---------- 渲染：关注（我的球队） ----------
+  // ---------- 渲染：关注（我的球队，无需登录） ----------
   function renderFollow() {
-    const user = currentUser();
-    if (!user) return loginPrompt('登录后选择感兴趣的球队，查看专属赛程');
-    const followed = new Set(user.followed);
+    const followed = new Set(currentFollowed());
     const view = state.followView || (followed.size ? 'schedule' : 'teams');
     const toggle = `<div class="filter-bar">
       <button class="chip ${view === 'schedule' ? 'active' : ''}" data-followview="schedule">我的赛程</button>
       <button class="chip ${view === 'teams' ? 'active' : ''}" data-followview="teams">选择球队</button></div>`;
     let html = `<div class="section-title">⭐ 我的球队 <span class="count">已关注 ${followed.size} 支</span></div>` + toggle;
-    html += view === 'schedule' ? renderFollowedSchedule(user, followed) : renderTeamPicker(followed);
+    if (!currentUser()) {
+      html += `<div class="card" style="font-size:12px;color:var(--muted);padding:10px 14px;margin-bottom:12px">
+        当前未登录，关注会保存在本设备。<a href="#" id="goLogin" style="color:var(--accent);font-weight:700;text-decoration:none">登录/注册</a> 后可同步到账号并参与竞猜。</div>`;
+    }
+    html += view === 'schedule' ? renderFollowedSchedule(followed) : renderTeamPicker(followed);
     return html;
   }
 
@@ -430,7 +438,7 @@
   }
 
   // 关注球队的全部赛程（看球日历）
-  function renderFollowedSchedule(user, followed) {
+  function renderFollowedSchedule(followed) {
     const list = MATCHES.filter(m => followsMatch(m, followed));
     if (list.length === 0) {
       return emptyBlock('⭐', '你还没有关注球队<br/>切到「选择球队」挑选感兴趣的队伍<br/>关注后这里会汇总它们的全部赛程');
@@ -459,8 +467,8 @@
     return html;
   }
 
-  function buildIcs(user) {
-    const followed = new Set(user.followed);
+  function buildIcs(followedArr) {
+    const followed = new Set(followedArr);
     const list = MATCHES.filter(m => followsMatch(m, followed));
     const pad = n => String(n).padStart(2, '0');
     const toUtc = iso => {
@@ -538,7 +546,7 @@
 
   // 球队积分榜：各小组实时排名表
   function renderTeamStandings() {
-    const followed = new Set((currentUser() || { followed: [] }).followed);
+    const followed = new Set(currentFollowed());
     let html = `<div class="card" style="font-size:12px;color:var(--muted);padding:10px 14px;margin-bottom:12px">
       胜 3 分 / 平 1 分 / 负 0 分，按 积分 → 净胜球 → 进球 排序。<span style="color:var(--win)">绿</span>=前两名出线区，<span style="color:var(--draw)">橙</span>=小组第三（争最佳第三名）。</div>`;
     GROUPS.forEach(g => {
@@ -716,7 +724,7 @@
         state.authMode = state.authMode === 'login' ? 'register' : 'login';
         state.authError = ''; return render();
       }
-      if (['goLogin', 'hLogin'].includes(e.target.id)) { state.authMode = 'login'; return go('me'); }
+      if (['goLogin', 'hLogin'].includes(e.target.id)) { e.preventDefault(); state.authMode = 'login'; return go('me'); }
       if (e.target.id === 'logoutBtn') return logout();
       if (e.target.id === 'exportIcs') return exportCalendar();
     });
@@ -733,6 +741,15 @@
   }
 
   // ---------- 业务动作 ----------
+  // 登录/注册后，把游客关注合并进账号
+  function mergeGuestFollows() {
+    const guest = load(LS.guestFollows, []);
+    if (!guest.length) return;
+    updateCurrentUser(u => {
+      guest.forEach(t => { if (!u.followed.includes(t)) u.followed.push(t); });
+    });
+    localStorage.removeItem(LS.guestFollows);
+  }
   function handleAuth(username, password) {
     if (state.authMode === 'register') {
       if (username.length < 2 || username.length > 12) return authErr('用户名需 2~12 个字符');
@@ -742,6 +759,7 @@
       users.push({ username, password, followed: [], bets: {} });
       setUsers(users);
       save(LS.session, username);
+      mergeGuestFollows();
       toast('注册成功，欢迎加入！🎉');
       state.authError = ''; go('follow');
     } else {
@@ -749,6 +767,7 @@
       if (!u) return authErr('用户不存在，请先注册');
       if (u.password !== password) return authErr('密码不正确');
       save(LS.session, username);
+      mergeGuestFollows();
       toast(`欢迎回来，${username}！`);
       state.authError = ''; go('schedule');
     }
@@ -760,12 +779,19 @@
     state.authMode = 'login'; go('me');
   }
   function toggleFollow(team) {
-    if (!currentUser()) { state.authMode = 'login'; return go('me'); }
-    updateCurrentUser(u => {
-      const i = u.followed.indexOf(team);
-      if (i >= 0) { u.followed.splice(i, 1); toast(`已取消关注 ${team}`); }
-      else { u.followed.push(team); toast(`已关注 ${team} ⭐ 日历已更新`); }
-    });
+    if (currentUser()) {
+      updateCurrentUser(u => {
+        const i = u.followed.indexOf(team);
+        if (i >= 0) { u.followed.splice(i, 1); toast(`已取消关注 ${team}`); }
+        else { u.followed.push(team); toast(`已关注 ${team} ⭐ 赛程已更新`); }
+      });
+    } else {
+      const arr = load(LS.guestFollows, []);
+      const i = arr.indexOf(team);
+      if (i >= 0) { arr.splice(i, 1); toast(`已取消关注 ${team}`); }
+      else { arr.push(team); toast(`已关注 ${team} ⭐ 赛程已更新`); }
+      save(LS.guestFollows, arr);
+    }
     render();
   }
   function placeBet(matchId, pick) {
@@ -802,9 +828,9 @@
     render();
   }
   function exportCalendar() {
-    const user = currentUser();
-    if (!user || user.followed.length === 0) return toast('请先关注球队');
-    const ics = buildIcs(user);
+    const followedArr = currentFollowed();
+    if (followedArr.length === 0) return toast('请先关注球队');
+    const ics = buildIcs(followedArr);
     const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
