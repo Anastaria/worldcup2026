@@ -28,11 +28,14 @@
   let state = {
     tab: 'schedule',
     scheduleFilter: 'all', // all | group | knockout | upcoming | mine
+    scheduleView: 'list',  // list | bracket（赛程：列表 / 对阵图）
+    bracketZoom: 0.62,     // 对阵图缩放比例
     teamGroupFilter: 'all',
     followView: null,      // schedule | teams（null 时按是否已关注自动决定）
     scheduleViewMode: 'list', // list | calendar（我的赛程）
     selectedDay: null,     // 月历选中的日期 key
     rankView: 'teams',     // teams | users
+    betView: 'wdl',        // wdl | score | goals | champion（竞猜栏目）
     authMode: 'login',     // login | register
     authError: '',
     adminOpen: false,
@@ -236,20 +239,52 @@
   }
 
   // ---------- 积分 ----------
-  const POINTS_CORRECT = 3;
+  const POINTS_CORRECT = 3;                 // 胜平负
+  const POINTS = { wdl: 3, score: 5, goals: 2, champion: 30 };
+  function totalGoals(m) { const r = getMatchResult(m); return r.home + r.away; }
+  function goalsHit(pick, total) { return pick >= 6 ? total >= 6 : pick === total; }
+  // 最终冠军（决赛结算后才确定）
+  function finalChampion() {
+    const f = MATCH_BY_ID['FINAL'];
+    if (!f) return null;
+    const wl = winnerLoserOf(f);
+    return wl ? wl.win : null;
+  }
   function userStats(user) {
-    let points = 0, correct = 0, settled = 0, totalBets = 0;
-    const bets = user.bets || {};
+    const bets = user.bets || {}, sb = user.scoreBets || {}, gb = user.goalBets || {};
+    let points = 0;
+    const wdl = { correct: 0, settled: 0, total: 0 };
+    const score = { correct: 0, settled: 0, total: 0 };
+    const goals = { correct: 0, settled: 0, total: 0 };
     MATCHES.forEach(m => {
-      const pick = bets[m.id];
-      if (!pick) return;
-      totalBets++;
-      if (isSettled(m)) {
-        settled++;
-        if (pick === matchOutcome(m)) { correct++; points += POINTS_CORRECT; }
+      const done = isSettled(m);
+      if (bets[m.id] != null) {
+        wdl.total++;
+        if (done) { wdl.settled++; if (bets[m.id] === matchOutcome(m)) { wdl.correct++; points += POINTS.wdl; } }
+      }
+      if (sb[m.id] != null) {
+        score.total++;
+        if (done) {
+          score.settled++; const r = getMatchResult(m);
+          if (sb[m.id].home === r.home && sb[m.id].away === r.away) { score.correct++; points += POINTS.score; }
+        }
+      }
+      if (gb[m.id] != null) {
+        goals.total++;
+        if (done) { goals.settled++; if (goalsHit(gb[m.id], totalGoals(m))) { goals.correct++; points += POINTS.goals; } }
       }
     });
-    return { points, correct, settled, totalBets, pending: totalBets - settled };
+    const champion = { picked: user.championBet || null, correct: false, settled: false };
+    const champ = finalChampion();
+    if (champion.picked && champ) {
+      champion.settled = true;
+      if (champion.picked === champ) { champion.correct = true; points += POINTS.champion; }
+    }
+    return {
+      points,
+      correct: wdl.correct, settled: wdl.settled, totalBets: wdl.total, pending: wdl.total - wdl.settled,
+      wdl, score, goals, champion,
+    };
   }
   function leaderboard() {
     return getUsers()
@@ -262,10 +297,20 @@
     if (getUsers().length > 0) return;
     const picks = ['home', 'draw', 'away'];
     const users = [];
-    // 榜首玩家：罗莉（命中所有已结算比赛，稳居第一）
-    const loriBets = {};
-    MATCHES.forEach(m => { if (!m.knockout) loriBets[m.id] = matchOutcome(m); });
-    users.push({ username: '罗莉', password: 'demo123', followed: [], bets: loriBets });
+    // 榜首玩家：罗莉（各类竞猜全部命中，稳居第一）
+    const loriBets = {}, loriScore = {}, loriGoals = {};
+    MATCHES.forEach(m => {
+      if (m.knockout) return;
+      const r = getMatchResult(m);
+      loriBets[m.id] = matchOutcome(m);
+      loriScore[m.id] = { home: r.home, away: r.away };
+      loriGoals[m.id] = Math.min(6, r.home + r.away);
+    });
+    users.push({
+      username: '罗莉', password: 'demo123', followed: [],
+      bets: loriBets, scoreBets: loriScore, goalBets: loriGoals,
+      championBet: finalChampion() || '巴西',
+    });
     // 其余演示用户
     const others = ['老王看球', '足球小将', '冷门收割机', '客厅解说员'];
     others.forEach((name, i) => {
@@ -281,6 +326,12 @@
 
   // ---------- 渲染：赛程 ----------
   function renderSchedule() {
+    const mode = state.scheduleView || 'list';
+    const modeBar = `<div class="filter-bar">
+      <button class="chip ${mode === 'list' ? 'active' : ''}" data-schedmode="list">📋 赛程列表</button>
+      <button class="chip ${mode === 'bracket' ? 'active' : ''}" data-schedmode="bracket">🏆 对阵图</button></div>`;
+    if (mode === 'bracket') return modeBar + renderBracket();
+
     const user = currentUser();
     const followed = new Set(currentFollowed());
     const filters = [
@@ -302,12 +353,12 @@
     <div style="font-size:11px;color:var(--muted);margin:0 2px 6px">🕐 北京时间 · 共 ${MATCHES.length} 场（72 小组赛 + 32 淘汰赛）</div>`;
 
     if (list.length === 0) {
-      return bar + emptyBlock('🗓️', state.scheduleFilter === 'mine'
+      return modeBar + bar + emptyBlock('🗓️', state.scheduleFilter === 'mine'
         ? '你还没有关注球队<br/>去「关注」页选择喜欢的球队吧' : '暂无比赛');
     }
     const byDate = {};
     list.forEach(m => { const k = fmtDateKey(m.kickoff); (byDate[k] = byDate[k] || []).push(m); });
-    let html = bar;
+    let html = modeBar + bar;
     Object.keys(byDate).sort().forEach(dateKey => {
       const { main, dow } = fmtDateLabel(dateKey);
       html += `<div class="date-head">${main}<span class="dow">${dow}</span></div>`;
@@ -319,6 +370,114 @@
   function followsMatch(m, followedSet) {
     const t = teamsOf(m);
     return (t.home.name && followedSet.has(t.home.name)) || (t.away.name && followedSet.has(t.away.name));
+  }
+
+  // ---------- 渲染：全局对阵图（淘汰赛） ----------
+  function renderBracket() {
+    const rounds = [
+      { bn: '1/16', title: '1/16 决赛' },
+      { bn: '1/8', title: '1/8 决赛' },
+      { bn: '1/4', title: '1/4 决赛' },
+      { bn: '半决赛', title: '半决赛' },
+      { bn: '决赛', title: '决赛' },
+    ];
+    const z = state.bracketZoom || 0.62;
+    let cols = '';
+    rounds.forEach(rd => {
+      const ms = MATCHES.filter(m => m.knockout && m.bn === rd.bn).sort((a, b) => a.bi - b.bi);
+      const nodes = ms.map(bracketNode).join('');
+      cols += `<div class="bk-col"><div class="bk-col-h">${rd.title}<small>${ms.length}场</small></div><div class="bk-col-body">${nodes}</div></div>`;
+    });
+    const third = MATCH_BY_ID['3RD'];
+    const thirdCol = third ? `<div class="bk-col bk-extra"><div class="bk-col-h">季军赛<small>1场</small></div><div class="bk-col-body">${bracketNode(third)}</div></div>` : '';
+    const champ = finalChampion();
+    const champBanner = `<div class="bk-champ">🏆 预测/产生冠军：<b>${champ ? `${flag(champ)} ${champ}` : '待决赛产生'}</b></div>`;
+    return `
+      <div class="bracket-wrap">
+        ${champBanner}
+        <div class="bracket-ctrl">
+          <button class="bk-zbtn" data-zoom="out">－</button>
+          <button class="bk-zbtn bk-zlabel" data-zoom="reset">${Math.round(z * 100)}%</button>
+          <button class="bk-zbtn" data-zoom="in">＋</button>
+          <span class="bk-tip">横向拖动浏览 · 双指/按钮缩放</span>
+        </div>
+        <div class="bracket-stage" id="bracketStage">
+          <div class="bracket-zoom" id="bracketZoom" style="zoom:${z}">
+            <div class="bracket-cols">${cols}${thirdCol}</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function bracketNode(m) {
+    const t = teamsOf(m);
+    const r = getMatchResult(m);
+    const show = showsScore(m);
+    const settled = isSettled(m);
+    const teamRow = (side, info) => {
+      const known = !!info.name;
+      const nm = known ? `${flag(info.name)} ${info.name}` : `<span class="muted">${info.label}</span>`;
+      const sc = show ? `<span class="bk-sc">${side === 'home' ? r.home : r.away}</span>` : '';
+      const isWin = show && settled && known && matchOutcome(m) === side;
+      return `<div class="bk-team ${isWin ? 'bk-win' : ''}">${nm}${sc}</div>`;
+    };
+    const meta = show ? RESULT_TAG[r.source] : `${fmtDateLabel(fmtDateKey(m.kickoff)).main} ${fmtTime(m.kickoff)}`;
+    return `<div class="bk-node"><div class="bk-node-h"><span>${m.stage}·${m.bi}</span><span>${meta}</span></div>${teamRow('home', t.home)}${teamRow('away', t.away)}</div>`;
+  }
+
+  function adjustZoom(dir) {
+    let z = state.bracketZoom || 0.62;
+    if (dir === 'in') z = Math.min(1.8, +(z + 0.15).toFixed(2));
+    else if (dir === 'out') z = Math.max(0.35, +(z - 0.15).toFixed(2));
+    else z = 0.62;
+    state.bracketZoom = z;
+    const el = document.getElementById('bracketZoom');
+    if (el) el.style.zoom = z;
+    const lbl = document.querySelector('.bk-zlabel');
+    if (lbl) lbl.textContent = Math.round(z * 100) + '%';
+  }
+
+  // 对阵图手势：拖动平移 + 双指/ctrl 滚轮缩放
+  let bkDrag = null;      // 拖动状态（窗口级监听只绑定一次）
+  let bkPinchBase = 0, bkZoomBase = 0.62;
+  function setupBracketGestures() {
+    const stage = document.getElementById('bracketStage');
+    if (!stage) return;
+    stage.addEventListener('mousedown', e => {
+      bkDrag = { stage, sx: e.pageX, sy: e.pageY, sl: stage.scrollLeft, st: stage.scrollTop };
+      stage.classList.add('grabbing');
+    });
+    stage.addEventListener('wheel', e => {
+      if (!e.ctrlKey) return;
+      e.preventDefault(); adjustZoom(e.deltaY < 0 ? 'in' : 'out');
+    }, { passive: false });
+    stage.addEventListener('touchstart', e => {
+      if (e.touches.length === 2) { bkPinchBase = touchDist(e.touches); bkZoomBase = state.bracketZoom || 0.62; }
+    }, { passive: true });
+    stage.addEventListener('touchmove', e => {
+      if (e.touches.length === 2 && bkPinchBase) {
+        const z = Math.max(0.35, Math.min(1.8, bkZoomBase * (touchDist(e.touches) / bkPinchBase)));
+        state.bracketZoom = +z.toFixed(2);
+        const el = document.getElementById('bracketZoom');
+        if (el) el.style.zoom = state.bracketZoom;
+        const lbl = document.querySelector('.bk-zlabel');
+        if (lbl) lbl.textContent = Math.round(state.bracketZoom * 100) + '%';
+      }
+    }, { passive: true });
+  }
+  function bindBracketWindowEvents() {
+    window.addEventListener('mousemove', e => {
+      if (!bkDrag) return;
+      bkDrag.stage.scrollLeft = bkDrag.sl - (e.pageX - bkDrag.sx);
+      bkDrag.stage.scrollTop = bkDrag.st - (e.pageY - bkDrag.sy);
+    });
+    window.addEventListener('mouseup', () => {
+      if (bkDrag) { bkDrag.stage.classList.remove('grabbing'); bkDrag = null; }
+    });
+  }
+  function touchDist(touches) {
+    const dx = touches[0].pageX - touches[1].pageX, dy = touches[0].pageY - touches[1].pageY;
+    return Math.hypot(dx, dy);
   }
 
   function statusBadge(m) {
@@ -550,29 +709,139 @@
     return lines.join('\r\n');
   }
 
-  // ---------- 渲染：竞猜 ----------
+  // ---------- 渲染：竞猜（胜平负 / 比分 / 总进球 / 冠军） ----------
+  // 可竞猜的比赛：未开赛、未结算、且对阵已确定
+  function bettableMatches() {
+    return MATCHES.filter(m => matchStatus(m) === 'upcoming' && !isSettled(m))
+      .filter(m => { const t = teamsOf(m); return t.home.name && t.away.name; });
+  }
+  function betDateGroups(list) {
+    const byDate = {};
+    list.forEach(m => { const k = fmtDateKey(m.kickoff); (byDate[k] = byDate[k] || []).push(m); });
+    return byDate;
+  }
+
   function renderBet() {
     const user = currentUser();
-    if (!user) return loginPrompt('登录后参与胜平负竞猜，猜中得 3 分，冲击积分榜！');
-    const upcoming = MATCHES.filter(m => matchStatus(m) === 'upcoming' && !isSettled(m));
-    const known = upcoming.filter(m => { const t = teamsOf(m); return t.home.name && t.away.name; });
-    const bets = user.bets || {};
-    const betCount = known.filter(m => bets[m.id]).length;
+    if (!user) return loginPrompt('登录后参与各类竞猜（胜平负 / 比分 / 总进球 / 冠军），冲击积分榜！');
+    const view = state.betView || 'wdl';
+    const tabs = [
+      ['wdl', '胜平负', `+${POINTS.wdl}`],
+      ['score', '比分', `+${POINTS.score}`],
+      ['goals', '总进球', `+${POINTS.goals}`],
+      ['champion', '冠军', `+${POINTS.champion}`],
+    ];
+    const toggle = `<div class="filter-bar">${tabs.map(([k, l]) =>
+      `<button class="chip ${view === k ? 'active' : ''}" data-betview="${k}">${l}</button>`).join('')}</div>`;
     const stats = userStats(user);
-    let html = `<div class="stat-row">
+    const head = `<div class="stat-row">
         <div class="stat"><div class="n">${stats.points}</div><div class="l">我的积分</div></div>
-        <div class="stat"><div class="n">${stats.correct}</div><div class="l">已猜中</div></div>
-        <div class="stat"><div class="n">${betCount}</div><div class="l">待开赛竞猜</div></div>
-      </div>
-      <div class="section-title">🎯 未开赛比赛竞猜 <span class="count">${known.length} 场可猜</span></div>`;
+        <div class="stat"><div class="n">${stats.wdl.correct + stats.score.correct + stats.goals.correct}</div><div class="l">已猜中</div></div>
+        <div class="stat"><div class="n">${stats.wdl.total + stats.score.total + stats.goals.total + (stats.champion.picked ? 1 : 0)}</div><div class="l">已参与</div></div>
+      </div>` + toggle;
+    let body;
+    if (view === 'score') body = renderScoreBet(user, stats);
+    else if (view === 'goals') body = renderGoalBet(user, stats);
+    else if (view === 'champion') body = renderChampionBet(user, stats);
+    else body = renderWdlBet(user, stats);
+    return head + body;
+  }
+
+  function betRuleCard(text) {
+    return `<div class="card" style="font-size:12px;color:var(--muted);padding:10px 14px;margin-bottom:12px">${text}</div>`;
+  }
+
+  // 胜平负
+  function renderWdlBet(user, stats) {
+    const known = bettableMatches();
+    let html = betRuleCard(`猜中一场比赛的<b>胜 / 平 / 负</b>得 <b style="color:var(--navy)">${POINTS.wdl}</b> 分。已命中 ${stats.wdl.correct} 场。`);
+    html += `<div class="section-title">🎯 胜平负竞猜 <span class="count">${known.length} 场可猜</span></div>`;
     if (known.length === 0) return html + emptyBlock('🎉', '当前没有可竞猜的比赛');
     const followed = new Set(user.followed);
-    const byDate = {};
-    known.forEach(m => { const k = fmtDateKey(m.kickoff); (byDate[k] = byDate[k] || []).push(m); });
+    const byDate = betDateGroups(known);
     Object.keys(byDate).sort().forEach(k => {
       const { main, dow } = fmtDateLabel(k);
       html += `<div class="date-head">${main} <span class="dow">${dow}</span></div>`;
       byDate[k].forEach(m => { html += matchCard(m, user, followed); });
+    });
+    return html;
+  }
+
+  // 比分竞猜
+  function renderScoreBet(user, stats) {
+    const known = bettableMatches();
+    const sb = user.scoreBets || {};
+    let html = betRuleCard(`精准猜中一场比赛的<b>最终比分</b>得 <b style="color:var(--navy)">${POINTS.score}</b> 分（难度最高）。已命中 ${stats.score.correct} 场。`);
+    html += `<div class="section-title">🔢 比分竞猜 <span class="count">${known.length} 场可猜</span></div>`;
+    if (known.length === 0) return html + emptyBlock('🎉', '当前没有可竞猜的比赛');
+    const byDate = betDateGroups(known);
+    Object.keys(byDate).sort().forEach(k => {
+      const { main, dow } = fmtDateLabel(k);
+      html += `<div class="date-head">${main} <span class="dow">${dow}</span></div>`;
+      byDate[k].forEach(m => {
+        const t = teamsOf(m);
+        const cur = sb[m.id];
+        html += `<div class="card scorebet-card">
+          <div class="sb-top">${topLabel(m)} · ${fmtTime(m.kickoff)}${cur ? `<span class="sb-cur">已猜 ${cur.home}:${cur.away}</span>` : ''}</div>
+          <div class="sb-row">
+            <span class="sb-team">${flag(t.home.name)} ${t.home.name}</span>
+            <input class="sb-in" data-scorebet="${m.id}" data-sk="home" type="number" min="0" max="20" inputmode="numeric" value="${cur ? cur.home : ''}" placeholder="-" />
+            <span class="sb-colon">:</span>
+            <input class="sb-in" data-scorebet="${m.id}" data-sk="away" type="number" min="0" max="20" inputmode="numeric" value="${cur ? cur.away : ''}" placeholder="-" />
+            <span class="sb-team sb-team-r">${t.away.name} ${flag(t.away.name)}</span>
+          </div>
+          ${cur ? `<button class="sb-clear" data-scoreclear="${m.id}">清除</button>` : ''}
+        </div>`;
+      });
+    });
+    return html;
+  }
+
+  // 总进球数
+  function renderGoalBet(user, stats) {
+    const known = bettableMatches();
+    const gb = user.goalBets || {};
+    let html = betRuleCard(`猜中一场比赛的<b>总进球数</b>得 <b style="color:var(--navy)">${POINTS.goals}</b> 分（「6+」代表 6 球及以上）。已命中 ${stats.goals.correct} 场。`);
+    html += `<div class="section-title">⚽ 总进球数竞猜 <span class="count">${known.length} 场可猜</span></div>`;
+    if (known.length === 0) return html + emptyBlock('🎉', '当前没有可竞猜的比赛');
+    const opts = [0, 1, 2, 3, 4, 5, 6];
+    const byDate = betDateGroups(known);
+    Object.keys(byDate).sort().forEach(k => {
+      const { main, dow } = fmtDateLabel(k);
+      html += `<div class="date-head">${main} <span class="dow">${dow}</span></div>`;
+      byDate[k].forEach(m => {
+        const t = teamsOf(m);
+        const cur = gb[m.id];
+        const btns = opts.map(n => `<button class="goal-btn ${cur === n ? 'sel' : ''}" data-goalbet="${m.id}" data-goals="${n}">${n === 6 ? '6+' : n}</button>`).join('');
+        html += `<div class="card goalbet-card">
+          <div class="gb-top"><span>${flag(t.home.name)} ${t.home.name} vs ${t.away.name} ${flag(t.away.name)}</span><span class="muted">${fmtTime(m.kickoff)}</span></div>
+          <div class="gb-opts">${btns}</div>
+        </div>`;
+      });
+    });
+    return html;
+  }
+
+  // 最终冠军
+  function renderChampionBet(user, stats) {
+    const picked = user.championBet || null;
+    const champ = finalChampion();
+    let html = betRuleCard(`选择你心目中的<b>最终冠军</b>，决赛结束后若命中得 <b style="color:var(--navy)">${POINTS.champion}</b> 分。可随时更换（决赛结算前）。`);
+    html += `<div class="card champ-now">
+      <div>我的冠军预测：<b>${picked ? `${flag(picked)} ${picked}` : '尚未选择'}</b></div>
+      <div class="muted" style="font-size:12px;margin-top:4px">${champ ? `冠军已产生：${flag(champ)} ${champ} · ${stats.champion.correct ? '🎉 命中！' : '未命中'}` : '冠军尚未产生'}</div>
+    </div>`;
+    if (champ) return html; // 已结算，仅展示
+    GROUPS.forEach(g => {
+      html += `<div class="group-block"><h3><span class="tag">${g.name}组</span></h3><div class="group-grid">`;
+      g.teams.forEach(team => {
+        const on = picked === team;
+        html += `<div class="team-cell ${on ? 'followed' : ''}" data-champion="${team}">
+          <div class="flag">${flag(team)}</div>
+          <div class="info"><div class="tname">${team}</div><div class="grp">${g.name}组</div></div>
+          <div class="star">${on ? '👑' : '○'}</div></div>`;
+      });
+      html += `</div></div>`;
     });
     return html;
   }
@@ -739,6 +1008,7 @@
     view.innerHTML = html;
     renderHeaderUser();
     syncTabbar();
+    if (state.tab === 'schedule' && state.scheduleView === 'bracket') setupBracketGestures();
   }
   function renderHeaderUser() {
     const el = $('#headerUser');
@@ -774,10 +1044,22 @@
       if (cd) { state.selectedDay = cd.dataset.calday; return render(); }
       const rv = e.target.closest('[data-rankview]');
       if (rv) { state.rankView = rv.dataset.rankview; return render(); }
+      const sm = e.target.closest('[data-schedmode]');
+      if (sm) { state.scheduleView = sm.dataset.schedmode; return render(); }
+      const zb = e.target.closest('[data-zoom]');
+      if (zb) return adjustZoom(zb.dataset.zoom);
+      const bv = e.target.closest('[data-betview]');
+      if (bv) { state.betView = bv.dataset.betview; return render(); }
       const gt = e.target.closest('[data-goto]');
       if (gt) return go(gt.dataset.goto);
       const tc = e.target.closest('[data-team]');
       if (tc) return toggleFollow(tc.dataset.team);
+      const cb = e.target.closest('[data-champion]');
+      if (cb) return pickChampion(cb.dataset.champion);
+      const gbn = e.target.closest('[data-goalbet]');
+      if (gbn) return setGoalBet(gbn.dataset.goalbet, parseInt(gbn.dataset.goals, 10));
+      const scl = e.target.closest('[data-scoreclear]');
+      if (scl) return clearScoreBet(scl.dataset.scoreclear);
       const bb = e.target.closest('[data-bet]');
       if (bb) return placeBet(bb.dataset.bet, bb.dataset.pick);
       const sv = e.target.closest('[data-save]');
@@ -793,6 +1075,10 @@
       if (['goLogin', 'hLogin'].includes(e.target.id)) { e.preventDefault(); state.authMode = 'login'; return go('me'); }
       if (e.target.id === 'logoutBtn') return logout();
       if (e.target.id === 'exportIcs') return exportCalendar();
+    });
+    $('#view').addEventListener('change', e => {
+      const si = e.target.closest('[data-scorebet]');
+      if (si) maybeSaveScoreBet(si.dataset.scorebet);
     });
     $('#view').addEventListener('submit', e => {
       if (e.target.id === 'authForm') {
@@ -872,6 +1158,51 @@
     });
     render();
   }
+  // 校验比赛仍可竞猜
+  function canBet(matchId) {
+    const m = MATCH_BY_ID[matchId];
+    return m && !isSettled(m) && matchStatus(m) === 'upcoming';
+  }
+  // 比分竞猜：两个输入都填好后保存（不触发整页重渲染以保留输入焦点）
+  function maybeSaveScoreBet(matchId) {
+    if (!currentUser()) { state.authMode = 'login'; return go('me'); }
+    if (!canBet(matchId)) { toast('比赛已开赛，无法竞猜'); return render(); }
+    const hEl = document.querySelector(`[data-scorebet="${matchId}"][data-sk="home"]`);
+    const aEl = document.querySelector(`[data-scorebet="${matchId}"][data-sk="away"]`);
+    if (!hEl || !aEl) return;
+    if (hEl.value === '' || aEl.value === '') return; // 等两个都填
+    const hv = parseInt(hEl.value, 10), av = parseInt(aEl.value, 10);
+    if (isNaN(hv) || isNaN(av) || hv < 0 || av < 0) return toast('请输入有效比分');
+    const m = MATCH_BY_ID[matchId];
+    if (m && m.knockout && hv === av) return toast('淘汰赛不能为平局');
+    updateCurrentUser(u => { u.scoreBets = u.scoreBets || {}; u.scoreBets[matchId] = { home: hv, away: av }; });
+    toast(`已猜比分 ${hv}:${av} ✅`);
+    render();
+  }
+  function clearScoreBet(matchId) {
+    updateCurrentUser(u => { if (u.scoreBets) delete u.scoreBets[matchId]; });
+    toast('已清除比分竞猜');
+    render();
+  }
+  function setGoalBet(matchId, n) {
+    if (!currentUser()) { state.authMode = 'login'; return go('me'); }
+    if (!canBet(matchId)) { toast('比赛已开赛，无法竞猜'); return render(); }
+    updateCurrentUser(u => {
+      u.goalBets = u.goalBets || {};
+      if (u.goalBets[matchId] === n) { delete u.goalBets[matchId]; toast('已取消'); }
+      else { u.goalBets[matchId] = n; toast(`已猜总进球 ${n === 6 ? '6+' : n} ⚽`); }
+    });
+    render();
+  }
+  function pickChampion(team) {
+    if (!currentUser()) { state.authMode = 'login'; return go('me'); }
+    if (finalChampion()) { toast('冠军已产生，无法更改'); return render(); }
+    updateCurrentUser(u => {
+      if (u.championBet === team) { u.championBet = null; toast('已取消冠军预测'); }
+      else { u.championBet = team; toast(`已预测冠军：${team} 👑`); }
+    });
+    render();
+  }
   function saveResult(matchId) {
     const h = document.querySelector(`[data-score="${matchId}-home"]`);
     const a = document.querySelector(`[data-score="${matchId}-away"]`);
@@ -913,6 +1244,7 @@
   function init() {
     seedDemoUsers();
     bindEvents();
+    bindBracketWindowEvents();
     render();
   }
   document.addEventListener('DOMContentLoaded', init);
