@@ -34,9 +34,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   margin: 0 auto;
   min-height: 100vh;
   position: relative;
-  background:
-    linear-gradient(rgba(244,245,247,.84), rgba(244,245,247,.9)),
-    url('assets/app-bg.png') center top / cover no-repeat fixed;
+  background-color: #13371b;
+  background-image:
+    linear-gradient(rgba(244,245,247,.55), rgba(244,245,247,.66)),
+    url('assets/app-bg.png');
+  background-repeat: no-repeat, no-repeat;
+  background-position: center top, center top;
+  background-size: cover, contain;
+  background-attachment: fixed, fixed;
 }
 
 /* 顶部栏 */
@@ -354,28 +359,47 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .splash-title {
   margin: 0; font-size: 34px; font-weight: 900; letter-spacing: 2px;
   text-shadow: 0 4px 18px rgba(0,0,0,.5);
-  animation: splashUp .7s .15s ease both;
+  animation: splashUp .7s .1s ease both;
 }
 .splash-slogan {
   margin: 0; font-size: 19px; font-weight: 800; letter-spacing: 8px; padding-left: 8px;
   color: #ffd66b; text-shadow: 0 2px 10px rgba(0,0,0,.5);
-  animation: splashUp .7s .3s ease both;
+  animation: splashUp .7s .22s ease both;
 }
-.splash-quote {
-  margin: 18px 0 0; font-size: 13.5px; line-height: 1.8; color: rgba(255,255,255,.92);
-  min-height: 70px; transition: opacity .28s ease; text-shadow: 0 2px 8px rgba(0,0,0,.5);
-  animation: splashUp .7s .45s ease both;
-}
-.splash-quote span { display: inline-block; margin-top: 6px; font-size: 12px; color: #ffd66b; font-weight: 700; }
 @keyframes splashUp { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-.splash-loading { display: flex; gap: 7px; margin-top: 16px; }
-.splash-loading span {
-  width: 8px; height: 8px; border-radius: 50%; background: #fff; opacity: .5;
-  animation: splashDot 1.2s infinite ease-in-out;
+
+/* 语录轮播 */
+.splash-stage {
+  position: relative; width: 100%; margin-top: 26px;
+  min-height: 200px; display: flex; align-items: center; justify-content: center;
 }
-.splash-loading span:nth-child(2) { animation-delay: .2s; }
-.splash-loading span:nth-child(3) { animation-delay: .4s; }
-@keyframes splashDot { 0%,100% { opacity: .35; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-5px); } }
+.quote-slide {
+  position: absolute; inset: 0; margin: 0; padding: 22px 18px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.32); border: 1px solid rgba(255,255,255,.18);
+  border-radius: 16px; backdrop-filter: blur(3px);
+  opacity: 0; transform: translateY(10px) scale(.98);
+  transition: opacity .55s ease, transform .55s ease; pointer-events: none;
+}
+.quote-slide.on { opacity: 1; transform: translateY(0) scale(1); }
+.quote-mark {
+  font-size: 46px; line-height: .6; color: #ffd66b; font-family: Georgia, serif;
+  align-self: flex-start; opacity: .9;
+}
+.quote-slide blockquote {
+  margin: 6px 0 0; font-size: 15px; line-height: 1.9; color: #fff; font-weight: 600;
+  text-shadow: 0 2px 8px rgba(0,0,0,.6);
+}
+.quote-slide figcaption {
+  margin-top: 14px; align-self: flex-end; font-size: 13px; font-weight: 800; color: #ffd66b;
+  text-shadow: 0 2px 8px rgba(0,0,0,.5);
+}
+.splash-dots { display: flex; gap: 8px; margin-top: 20px; }
+.splash-dots span {
+  width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.35);
+  transition: all .3s ease;
+}
+.splash-dots span.on { background: #ffd66b; width: 20px; border-radius: 4px; }
 .splash-skip {
   position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%);
   background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.35);

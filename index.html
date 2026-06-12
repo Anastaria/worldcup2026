@@ -8,16 +8,31 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- 进入图（5 秒后自动进入） -->
+  <!-- 进入图：轮播三句足球语录（每句 2 秒，淡入淡出） -->
   <div id="splash" class="splash">
     <div class="splash-bg"></div>
     <div class="splash-mask"></div>
     <div class="splash-content">
-      <div class="splash-cup">🏆</div>
       <h1 class="splash-title">2026世界杯</h1>
       <p class="splash-slogan">燃情一夏</p>
-      <p class="splash-quote" id="splashQuote">当人们问及我哪一个进球最精彩，我的回答总是：下一个！<br/><span>—— 贝利（巴西）</span></p>
-      <div class="splash-loading"><span></span><span></span><span></span></div>
+      <div class="splash-stage" id="splashStage">
+        <figure class="quote-slide">
+          <span class="quote-mark">“</span>
+          <blockquote>足球就是如此，一方的欢喜衬托着另一方的忧伤，人类的极端情感，在这一刻得到充分的体现和释放，这就是足球。</blockquote>
+          <figcaption>—— “足球诗人”解说员 贺炜</figcaption>
+        </figure>
+        <figure class="quote-slide">
+          <span class="quote-mark">“</span>
+          <blockquote>当人们问及我哪一个进球是最精彩、漂亮的，我的回答总是：下一个！</blockquote>
+          <figcaption>—— 贝利（巴西）</figcaption>
+        </figure>
+        <figure class="quote-slide">
+          <span class="quote-mark">“</span>
+          <blockquote>人生就像罚点球，你永远也不会知道接下来要发生什么。但我们还是要一如既往地努力，纵乌云遮住了太阳，或阳光刺穿了乌云，到达之前永不停止。</blockquote>
+          <figcaption>—— 巴乔（意大利）</figcaption>
+        </figure>
+      </div>
+      <div class="splash-dots" id="splashDots"><span class="on"></span><span></span><span></span></div>
       <button class="splash-skip" id="splashSkip">跳过</button>
     </div>
   </div>
@@ -57,29 +72,28 @@
     (function () {
       var splash = document.getElementById('splash');
       if (!splash) return;
-      var quoteEl = document.getElementById('splashQuote');
-      var quotes = [
-        '当人们问及我哪一个进球最精彩，我的回答总是：下一个！<br><span>—— 贝利（巴西）</span>',
-        '人生就像罚点球，你永远不会知道接下来会发生什么，但我们仍要一如既往地努力。<br><span>—— 巴乔（意大利）</span>',
-        '足球就是如此，一方的欢喜衬托着另一方的忧伤，人类的极端情感在这一刻得到充分释放。<br><span>—— 解说员 贺炜</span>'
-      ];
-      var qi = 0;
-      var rotate = setInterval(function () {
-        qi = (qi + 1) % quotes.length;
-        if (quoteEl) {
-          quoteEl.style.opacity = '0';
-          setTimeout(function () { quoteEl.innerHTML = quotes[qi]; quoteEl.style.opacity = '1'; }, 280);
-        }
-      }, 1600);
+      var slides = splash.querySelectorAll('.quote-slide');
+      var dots = splash.querySelectorAll('#splashDots span');
+      var STEP = 2000; // 每句 2 秒
+      var i = 0, timers = [];
+      function show(n) {
+        slides.forEach(function (s, k) { s.classList.toggle('on', k === n); });
+        dots.forEach(function (d, k) { d.classList.toggle('on', k === n); });
+      }
+      show(0);
       function dismiss() {
         if (splash.classList.contains('hide')) return;
-        clearInterval(rotate);
+        timers.forEach(clearTimeout);
         splash.classList.add('hide');
         setTimeout(function () { if (splash.parentNode) splash.parentNode.removeChild(splash); }, 600);
       }
-      var timer = setTimeout(dismiss, 5000);
+      // 依次切到第 2、3 句，最后一句展示满 2 秒后退出
+      for (var n = 1; n < slides.length; n++) {
+        (function (idx) { timers.push(setTimeout(function () { show(idx); }, idx * STEP)); })(n);
+      }
+      timers.push(setTimeout(dismiss, slides.length * STEP));
       var skip = document.getElementById('splashSkip');
-      if (skip) skip.addEventListener('click', function () { clearTimeout(timer); dismiss(); });
+      if (skip) skip.addEventListener('click', dismiss);
     })();
   </script>
 
