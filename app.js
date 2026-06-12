@@ -29,7 +29,7 @@
     tab: 'schedule',
     scheduleFilter: 'all', // all | group | knockout | upcoming | mine
     scheduleView: 'list',  // list | bracket（赛程：列表 / 对阵图）
-    bracketZoom: 0.62,     // 对阵图缩放比例
+    bracketZoom: 0.5,      // 对阵图缩放比例
     teamGroupFilter: 'all',
     followView: null,      // schedule | teams（null 时按是否已关注自动决定）
     scheduleViewMode: 'list', // list | calendar（我的赛程）
@@ -380,25 +380,42 @@
   }
 
   // ---------- 渲染：全局对阵图（淘汰赛） ----------
+  // 两侧对称对阵图的轮次构成（按官方对阵树推导，自上而下）
+  const BRACKET = {
+    left: {
+      r32: ['R32-1', 'R32-3', 'R32-2', 'R32-5', 'R32-11', 'R32-12', 'R32-9', 'R32-10'],
+      r16: ['R16-1', 'R16-2', 'R16-5', 'R16-6'],
+      qf: ['QF-1', 'QF-2'],
+      sf: ['SF-1'],
+    },
+    right: {
+      r32: ['R32-4', 'R32-6', 'R32-7', 'R32-8', 'R32-14', 'R32-16', 'R32-13', 'R32-15'],
+      r16: ['R16-3', 'R16-4', 'R16-7', 'R16-8'],
+      qf: ['QF-3', 'QF-4'],
+      sf: ['SF-2'],
+    },
+  };
+
+  // 槽位的紧凑代号（未定球队时显示），如 1E / 2A / 3·ABCDF
+  function slotCode(slot) {
+    if (!slot) return '—';
+    if (slot.kind === 'group') return `${slot.rank}${slot.group}`;
+    if (slot.kind === 'third') return `3·${slot.candidates.join('')}`;
+    return '—'; // 胜/负者：由连线表达，未定时留空
+  }
+  function mdTime(iso) { return `${iso.slice(5, 10).replace('-', '/')} ${iso.slice(11, 16)}`; }
+
   function renderBracket() {
-    const rounds = [
-      { bn: '1/16', title: '1/16 决赛' },
-      { bn: '1/8', title: '1/8 决赛' },
-      { bn: '1/4', title: '1/4 决赛' },
-      { bn: '半决赛', title: '半决赛' },
-      { bn: '决赛', title: '决赛' },
-    ];
-    const z = state.bracketZoom || 0.62;
-    let cols = '';
-    rounds.forEach(rd => {
-      const ms = MATCHES.filter(m => m.knockout && m.bn === rd.bn).sort((a, b) => a.bi - b.bi);
-      const nodes = ms.map(bracketNode).join('');
-      cols += `<div class="bk-col"><div class="bk-col-h">${rd.title}<small>${ms.length}场</small></div><div class="bk-col-body">${nodes}</div></div>`;
-    });
-    const third = MATCH_BY_ID['3RD'];
-    const thirdCol = third ? `<div class="bk-col bk-extra"><div class="bk-col-h">季军赛<small>1场</small></div><div class="bk-col-body">${bracketNode(third)}</div></div>` : '';
+    const z = state.bracketZoom || 0.5;
     const champ = finalChampion();
     const champBanner = `<div class="bk-champ">🏆 预测/产生冠军：<b>${champ ? `${flag(champ)} ${champ}` : '待决赛产生'}</b></div>`;
+    const FINAL = MATCH_BY_ID['FINAL'], THIRD = MATCH_BY_ID['3RD'];
+    const center = `
+      <div class="bk-center">
+        <div class="bk-trophy">🏆<span>FINAL</span><small>${FINAL ? mdTime(FINAL.kickoff) + ' 北京时间' : ''}</small></div>
+        <div class="bk-final-cell">${FINAL ? bracketNode(FINAL) : ''}</div>
+        ${THIRD ? `<div class="bk-third"><div class="bk-third-h">季军赛 · ${mdTime(THIRD.kickoff)}</div>${bracketNode(THIRD)}</div>` : ''}
+      </div>`;
     return `
       <div class="bracket-wrap">
         ${champBanner}
@@ -406,37 +423,58 @@
           <button class="bk-zbtn" data-zoom="out">－</button>
           <button class="bk-zbtn bk-zlabel" data-zoom="reset">${Math.round(z * 100)}%</button>
           <button class="bk-zbtn" data-zoom="in">＋</button>
-          <span class="bk-tip">横向拖动浏览 · 双指/按钮缩放</span>
+          <span class="bk-tip">拖动浏览 · 双指/按钮缩放 · 北京时间</span>
         </div>
         <div class="bracket-stage" id="bracketStage">
           <div class="bracket-zoom" id="bracketZoom" style="zoom:${z}">
-            <div class="bracket-cols">${cols}${thirdCol}</div>
+            <div class="bracket-board">
+              ${bracketSide('left')}
+              ${center}
+              ${bracketSide('right')}
+            </div>
           </div>
         </div>
       </div>`;
   }
 
+  function bracketSide(side) {
+    const cfg = BRACKET[side];
+    // 左侧：外→内（R32→SF）；右侧：内→外（SF→R32）以朝中间收拢
+    const rounds = side === 'left'
+      ? [['R32', cfg.r32], ['R16', cfg.r16], ['QF', cfg.qf], ['SF', cfg.sf]]
+      : [['SF', cfg.sf], ['QF', cfg.qf], ['R16', cfg.r16], ['R32', cfg.r32]];
+    const cols = rounds.map(([key, ids]) =>
+      `<div class="bk-round bk-r-${key}">${ids.map(id =>
+        `<div class="bk-cell">${bracketNode(MATCH_BY_ID[id])}</div>`).join('')}</div>`
+    ).join('');
+    return `<div class="bk-side ${side}">${cols}</div>`;
+  }
+
   function bracketNode(m) {
+    if (!m) return '';
     const t = teamsOf(m);
     const r = getMatchResult(m);
     const show = showsScore(m);
     const settled = isSettled(m);
-    const teamRow = (side, info) => {
+    const teamRow = (side, info, slot) => {
       const known = !!info.name;
-      const nm = known ? `${flag(info.name)} ${info.name}` : `<span class="muted">${info.label}</span>`;
-      const sc = show ? `<span class="bk-sc">${side === 'home' ? r.home : r.away}</span>` : '';
+      const nm = known ? `${flag(info.name)} ${info.name}` : `<span class="bk-code">${slotCode(slot)}</span>`;
+      const sc = show ? `<b class="bk-sc">${side === 'home' ? r.home : r.away}</b>` : '';
       const isWin = show && settled && known && matchOutcome(m) === side;
       return `<div class="bk-team ${isWin ? 'bk-win' : ''}">${nm}${sc}</div>`;
     };
-    const meta = show ? RESULT_TAG[r.source] : `${fmtDateLabel(fmtDateKey(m.kickoff)).main} ${fmtTime(m.kickoff)}`;
-    return `<div class="bk-node"><div class="bk-node-h"><span>${m.stage}·${m.bi}</span><span>${meta}</span></div>${teamRow('home', t.home)}${teamRow('away', t.away)}</div>`;
+    return `<div class="bk-node">
+      <div class="bk-node-h">${mdTime(m.kickoff)} · ${m.venue}</div>
+      ${teamRow('home', t.home, m.homeSlot)}
+      ${teamRow('away', t.away, m.awaySlot)}
+    </div>`;
   }
 
   function adjustZoom(dir) {
-    let z = state.bracketZoom || 0.62;
+    let z = state.bracketZoom || 0.5;
     if (dir === 'in') z = Math.min(1.8, +(z + 0.15).toFixed(2));
-    else if (dir === 'out') z = Math.max(0.35, +(z - 0.15).toFixed(2));
-    else z = 0.62;
+    else if (dir === 'out') z = Math.max(0.3, +(z - 0.15).toFixed(2));
+    else z = 0.5;
     state.bracketZoom = z;
     const el = document.getElementById('bracketZoom');
     if (el) el.style.zoom = z;
