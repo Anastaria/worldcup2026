@@ -336,8 +336,10 @@
     const mode = state.scheduleView || 'list';
     const modeBar = `<div class="filter-bar">
       <button class="chip ${mode === 'list' ? 'active' : ''}" data-schedmode="list">📋 赛程列表</button>
-      <button class="chip ${mode === 'bracket' ? 'active' : ''}" data-schedmode="bracket">🏆 对阵图</button></div>`;
+      <button class="chip ${mode === 'bracket' ? 'active' : ''}" data-schedmode="bracket">🏆 对阵图</button>
+      <button class="chip ${mode === 'groups' ? 'active' : ''}" data-schedmode="groups">🌍 小组球队</button></div>`;
     if (mode === 'bracket') return modeBar + renderBracket();
+    if (mode === 'groups') return modeBar + renderBracketGroups();
 
     const user = currentUser();
     const followed = new Set(currentFollowed());
@@ -434,11 +436,10 @@
             </div>
           </div>
         </div>
-        ${renderBracketGroups()}
       </div>`;
   }
 
-  // 对阵图下方：各小组球队一览（含官方排名提示）
+  // 各小组球队一览（含官方排名提示）
   function renderBracketGroups() {
     const followed = new Set(currentFollowed());
     let html = `<div class="bk-groups">
