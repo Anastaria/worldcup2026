@@ -250,6 +250,13 @@
     const wl = winnerLoserOf(f);
     return wl ? wl.win : null;
   }
+  // 淘汰赛最早开球时间（小组赛结束、冠军竞猜截止的分界）
+  const KNOCKOUT_START = (() => {
+    const ks = MATCHES.filter(m => m.knockout).map(m => new Date(m.kickoff).getTime());
+    return ks.length ? Math.min(...ks) : Infinity;
+  })();
+  // 冠军竞猜是否开放：仅小组赛期间（淘汰赛开始前）可猜
+  function championBetOpen() { return now().getTime() < KNOCKOUT_START; }
   function userStats(user) {
     const bets = user.bets || {}, sb = user.scoreBets || {}, gb = user.goalBets || {};
     let points = 0;
@@ -826,12 +833,16 @@
   function renderChampionBet(user, stats) {
     const picked = user.championBet || null;
     const champ = finalChampion();
-    let html = betRuleCard(`选择你心目中的<b>最终冠军</b>，决赛结束后若命中得 <b style="color:var(--navy)">${POINTS.champion}</b> 分。可随时更换（决赛结算前）。`);
+    const open = championBetOpen();
+    let html = betRuleCard(`<b>仅小组赛期间</b>可预测<b>最终冠军</b>，淘汰赛开始后截止、不可更改。决赛结束后若命中得 <b style="color:var(--navy)">${POINTS.champion}</b> 分。`);
+    const statusLine = champ
+      ? `冠军已产生：${flag(champ)} ${champ} · ${stats.champion.correct ? '🎉 命中！' : '未命中'}`
+      : (open ? '冠军竞猜进行中（小组赛期间）' : '冠军竞猜已截止（淘汰赛已开始）');
     html += `<div class="card champ-now">
       <div>我的冠军预测：<b>${picked ? `${flag(picked)} ${picked}` : '尚未选择'}</b></div>
-      <div class="muted" style="font-size:12px;margin-top:4px">${champ ? `冠军已产生：${flag(champ)} ${champ} · ${stats.champion.correct ? '🎉 命中！' : '未命中'}` : '冠军尚未产生'}</div>
+      <div class="muted" style="font-size:12px;margin-top:4px">${statusLine}</div>
     </div>`;
-    if (champ) return html; // 已结算，仅展示
+    if (!open) return html; // 小组赛结束后仅展示，不可再选
     GROUPS.forEach(g => {
       html += `<div class="group-block"><h3><span class="tag">${g.name}组</span></h3><div class="group-grid">`;
       g.teams.forEach(team => {
@@ -1196,7 +1207,7 @@
   }
   function pickChampion(team) {
     if (!currentUser()) { state.authMode = 'login'; return go('me'); }
-    if (finalChampion()) { toast('冠军已产生，无法更改'); return render(); }
+    if (!championBetOpen()) { toast('淘汰赛已开始，冠军竞猜已截止'); return render(); }
     updateCurrentUser(u => {
       if (u.championBet === team) { u.championBet = null; toast('已取消冠军预测'); }
       else { u.championBet = team; toast(`已预测冠军：${team} 👑`); }
