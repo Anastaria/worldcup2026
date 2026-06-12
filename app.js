@@ -402,10 +402,10 @@
   // ---------- 渲染：关注（我的球队，无需登录） ----------
   function renderFollow() {
     const followed = new Set(currentFollowed());
-    const view = state.followView || (followed.size ? 'schedule' : 'teams');
+    const view = state.followView || 'teams';
     const toggle = `<div class="filter-bar">
-      <button class="chip ${view === 'schedule' ? 'active' : ''}" data-followview="schedule">我的赛程</button>
-      <button class="chip ${view === 'teams' ? 'active' : ''}" data-followview="teams">选择球队</button></div>`;
+      <button class="chip ${view === 'teams' ? 'active' : ''}" data-followview="teams">选择球队</button>
+      <button class="chip ${view === 'schedule' ? 'active' : ''}" data-followview="schedule">我的赛程</button></div>`;
     let html = `<div class="section-title">⭐ 我的球队 <span class="count">已关注 ${followed.size} 支</span></div>` + toggle;
     if (!currentUser()) {
       html += `<div class="card" style="font-size:12px;color:var(--muted);padding:10px 14px;margin-bottom:12px">
