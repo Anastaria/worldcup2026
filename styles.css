@@ -321,16 +321,20 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .tabbar {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: 480px; height: var(--tabbar-h);
-  background: #fff; border-top: 1px solid var(--line);
+  background:
+    linear-gradient(rgba(8,26,16,.42), rgba(8,26,16,.58)),
+    url('assets/tabbar-bg.png') center / cover no-repeat;
+  border-top: 1px solid rgba(255,255,255,.2);
   display: flex; z-index: 40; padding-bottom: env(safe-area-inset-bottom);
 }
 .tab {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  color: var(--muted); font-size: 11px; font-weight: 600;
+  color: rgba(255,255,255,.82); font-size: 11px; font-weight: 700;
+  text-shadow: 0 1px 4px rgba(0,0,0,.7);
 }
-.tab .tab-ico { font-size: 20px; filter: grayscale(1); opacity: .55; transition: all .15s; }
-.tab.active { color: var(--navy); }
-.tab.active .tab-ico { filter: none; opacity: 1; transform: translateY(-1px); }
+.tab .tab-ico { font-size: 20px; opacity: .85; transition: all .15s; filter: drop-shadow(0 1px 3px rgba(0,0,0,.5)); }
+.tab.active { color: #ffd66b; }
+.tab.active .tab-ico { opacity: 1; transform: translateY(-1px); }
 
 /* 进入图 / 启动页 */
 .splash {
