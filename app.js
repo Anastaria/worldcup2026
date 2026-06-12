@@ -797,14 +797,16 @@
       const d = new Date(iso);
       return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`;
     };
-    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//WorldCup2026//H5//CN', 'CALSCALE:GREGORIAN'];
+    const esc = s => String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+    const stamp = toUtc(new Date().toISOString());
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//WorldCup2026//H5//CN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
     list.forEach(m => {
       const t = teamsOf(m);
       const hn = t.home.name || t.home.label, an = t.away.name || t.away.label;
       const end = new Date(new Date(m.kickoff).getTime() + MATCH_DURATION_MS);
-      lines.push('BEGIN:VEVENT', `UID:${m.id}@worldcup2026`, `DTSTART:${toUtc(m.kickoff)}`,
-        `DTEND:${toUtc(end.toISOString())}`, `SUMMARY:⚽ ${hn} vs ${an}`,
-        `LOCATION:${m.venue}`, `DESCRIPTION:2026 世界杯 ${topLabel(m)}`, 'END:VEVENT');
+      lines.push('BEGIN:VEVENT', `UID:${m.id}@worldcup2026`, `DTSTAMP:${stamp}`, `DTSTART:${toUtc(m.kickoff)}`,
+        `DTEND:${toUtc(end.toISOString())}`, `SUMMARY:${esc('⚽ ' + hn + ' vs ' + an)}`,
+        `LOCATION:${esc(m.venue)}`, `DESCRIPTION:${esc('2026 世界杯 ' + topLabel(m))}`, 'END:VEVENT');
     });
     lines.push('END:VCALENDAR');
     return lines.join('\r\n');
@@ -1336,15 +1338,42 @@
     toast('已恢复为模拟比分');
     render();
   }
-  function exportCalendar() {
+  async function exportCalendar() {
     const followedArr = currentFollowed();
     if (followedArr.length === 0) return toast('请先关注球队');
     const ics = buildIcs(followedArr);
+    const filename = '世界杯2026-我的看球日历.ics';
+
+    // 1) 优先系统分享：iOS/Android 可直接“添加到日历 / 存到文件”
+    try {
+      if (navigator.canShare && typeof File !== 'undefined') {
+        const file = new File([ics], filename, { type: 'text/calendar' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: '世界杯2026 看球日历' });
+          return;
+        }
+      }
+    } catch (err) {
+      if (err && err.name === 'AbortError') return; // 用户取消
+      // 其余情况继续走兜底
+    }
+
+    const ua = navigator.userAgent || '';
+    const isIOS = /iP(hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+
+    // 2) iOS Safari 不支持 a[download]，用 data:URL 触发系统“添加到日历”
+    if (isIOS) {
+      window.location.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+      toast('在弹出的页面点“添加全部”即可导入日历 📅');
+      return;
+    }
+
+    // 3) 桌面 / 安卓：常规下载
     const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = '世界杯2026-我的看球日历.ics';
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
