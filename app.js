@@ -5,6 +5,15 @@
   const MATCH_BY_ID = {};
   MATCHES.forEach(m => { MATCH_BY_ID[m.id] = m; });
 
+  // 收集所有"最佳第三名"槽位（按官方场次号排序），用于晋级分配
+  const THIRD_SLOTS = [];
+  MATCHES.forEach(m => {
+    [m.homeSlot, m.awaySlot].forEach(s => {
+      if (s && s.kind === 'third') THIRD_SLOTS.push({ match: s.match, candidates: s.candidates });
+    });
+  });
+  THIRD_SLOTS.sort((a, b) => (MATCH_BY_ID[a.match].bi) - (MATCH_BY_ID[b.match].bi));
+
   // ---------- 存储 ----------
   const LS = {
     users: 'wc_users',        // [{username, password, followed:[], bets:{matchId:'home'|'draw'|'away'}}]
@@ -56,12 +65,13 @@
   }
   function getResults() { return load(LS.results, {}); }
   function hasManual(m) { return !!getResults()[m.id]; }
-  // 真实比分优先，否则用演示比分
+  // 比分优先级：手动录入 > 官方已赛 > 模拟
   function getMatchResult(m) {
     const man = getResults()[m.id];
-    if (man) return { home: man.home, away: man.away, real: true };
-    return { home: m.result.home, away: m.result.away, real: false };
+    if (man) return { home: man.home, away: man.away, source: 'manual' };
+    return { home: m.result.home, away: m.result.away, source: m.official ? 'official' : 'sim' };
   }
+  const RESULT_TAG = { manual: '录入比分', official: '官方比分', sim: '模拟比分' };
   // 是否已结算：录入了真实比分，或已踢完
   function isSettled(m) { return hasManual(m) || matchStatus(m) === 'finished'; }
   // 是否展示比分（已开赛 / 已结算）
@@ -77,6 +87,7 @@
   // ---------- 槽位解析（淘汰赛对阵） ----------
   function slotLabel(slot) {
     if (slot.kind === 'group') return `${slot.group}组第${slot.rank}`;
+    if (slot.kind === 'third') return slot.label; // 例如 A3/B3/C3/D3/F3
     const pm = MATCH_BY_ID[slot.match];
     const tag = slot.kind === 'winner' ? '胜者' : '负者';
     return pm ? `${pm.bn}-${pm.bi}${tag}` : tag;
@@ -88,6 +99,11 @@
       const standing = groupStanding(slot.group);
       if (!standing) return { name: null, label };
       return { name: standing[slot.rank - 1] || null, label };
+    }
+    if (slot.kind === 'third') {
+      const map = assignThirds();
+      if (!map || !map[slot.match]) return { name: null, label };
+      return { name: map[slot.match], label };
     }
     const pm = MATCH_BY_ID[slot.match];
     if (!pm) return { name: null, label };
@@ -114,8 +130,8 @@
       : { win: t.away.name, lose: t.home.name };
   }
 
-  // 小组排名：所有 6 场均已结算才返回排名数组，否则 null
-  function groupStanding(groupName) {
+  // 小组积分表：所有 6 场均已结算才返回（[{team,pts,gd,gf}] 排名序），否则 null
+  function groupTable(groupName) {
     const grp = GROUPS.find(x => x.name === groupName);
     if (!grp) return null;
     const ms = MATCHES.filter(m => !m.knockout && m.group === groupName);
@@ -131,8 +147,46 @@
       else { tbl[m.home].pts += 1; tbl[m.away].pts += 1; }
     });
     return Object.values(tbl)
-      .sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || a.team.localeCompare(b.team))
-      .map(x => x.team);
+      .sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || a.team.localeCompare(b.team));
+  }
+  function groupStanding(groupName) {
+    const t = groupTable(groupName);
+    return t ? t.map(x => x.team) : null;
+  }
+
+  // 12 个小组第三名排名（全部小组结算后才返回），前 8 名晋级
+  function thirdsRanking() {
+    if (!GROUP_NAMES.every(gn => groupTable(gn))) return null;
+    return GROUP_NAMES.map(gn => {
+      const row = groupTable(gn)[2];
+      return { group: gn, team: row.team, pts: row.pts, gd: row.gd, gf: row.gf };
+    }).sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || a.group.localeCompare(b.group));
+  }
+  // 将晋级的 8 个最佳第三名分配到 8 个淘汰赛槽位（候选组约束下的完美匹配，Kuhn 算法）
+  function assignThirds() {
+    const ranking = thirdsRanking();
+    if (!ranking) return null;
+    const qSet = new Set(ranking.slice(0, 8).map(x => x.group));
+    const teamByGroup = {}, rankIndex = {};
+    ranking.forEach((x, i) => { teamByGroup[x.group] = x.team; rankIndex[x.group] = i; });
+    // 每个槽位的可选组（仅限晋级的第三名），按排名排序以保证确定性
+    const slotCands = THIRD_SLOTS.map(s =>
+      s.candidates.filter(gn => qSet.has(gn)).sort((a, b) => rankIndex[a] - rankIndex[b]));
+    const groupToSlot = {};
+    const tryKuhn = (si, visited) => {
+      for (const gn of slotCands[si]) {
+        if (visited.has(gn)) continue;
+        visited.add(gn);
+        if (groupToSlot[gn] === undefined || tryKuhn(groupToSlot[gn], visited)) {
+          groupToSlot[gn] = si; return true;
+        }
+      }
+      return false;
+    };
+    for (let si = 0; si < THIRD_SLOTS.length; si++) tryKuhn(si, new Set());
+    const map = {};
+    Object.keys(groupToSlot).forEach(gn => { map[THIRD_SLOTS[groupToSlot[gn]].match] = teamByGroup[gn]; });
+    return map;
   }
 
   // ---------- 用户 ----------
@@ -209,7 +263,8 @@
 
     const bar = `<div class="filter-bar">${filters.map(f =>
       `<button class="chip ${state.scheduleFilter === f.k ? 'active' : ''}" data-sfilter="${f.k}">${f.label}</button>`
-    ).join('')}</div>`;
+    ).join('')}</div>
+    <div style="font-size:11px;color:var(--muted);margin:0 2px 6px">🕐 北京时间 · 共 ${MATCHES.length} 场（72 小组赛 + 32 淘汰赛）</div>`;
 
     if (list.length === 0) {
       return bar + emptyBlock('🗓️', state.scheduleFilter === 'mine'
@@ -260,7 +315,7 @@
     const r = getMatchResult(m);
     let center;
     if (showsScore(m)) {
-      const tag = r.real ? '<div class="venue">实际比分</div>' : '<div class="venue">演示比分</div>';
+      const tag = `<div class="venue">${RESULT_TAG[r.source]}</div>`;
       center = `<div class="score">${r.home} : ${r.away}</div>${tag}`;
     } else {
       center = `<div class="vs">VS</div><div class="time">${fmtTime(m.kickoff)}</div><div class="venue">${m.venue}</div>`;
@@ -473,10 +528,10 @@
         <span class="r">${state.adminOpen ? '收起 ▲' : '展开 ▼'}</span></div>`;
     if (!state.adminOpen) return head;
     if (list.length === 0) {
-      return head + `<div class="card" style="color:var(--muted);font-size:13px">暂无已开赛的比赛。比赛开赛后可在此录入真实比分以覆盖演示比分，积分与淘汰赛对阵会自动更新。</div>`;
+      return head + `<div class="card" style="color:var(--muted);font-size:13px">暂无已开赛的比赛。比赛开赛后可在此录入真实比分以覆盖模拟比分，积分与淘汰赛对阵会自动更新。</div>`;
     }
     let rows = `<div class="card" style="font-size:12px;color:var(--muted);margin-bottom:10px">
-      录入真实比分后将覆盖"演示比分"，并实时重新结算积分、推算淘汰赛对阵。点「恢复」可还原为演示比分。</div>`;
+      录入真实比分后将覆盖"模拟比分"，并实时重新结算积分、推算淘汰赛对阵。点「恢复」可还原为模拟比分。</div>`;
     const byDate = {};
     list.forEach(m => { const k = fmtDateKey(m.kickoff); (byDate[k] = byDate[k] || []).push(m); });
     Object.keys(byDate).sort().forEach(k => {
@@ -488,7 +543,7 @@
         const hn = t.home.name ? `${flag(t.home.name)} ${t.home.name}` : t.home.label;
         const an = t.away.name ? `${flag(t.away.name)} ${t.away.name}` : t.away.label;
         rows += `<div class="card" style="padding:11px 13px;margin-bottom:9px">
-          <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${topLabel(m)} · ${hasManual(m) ? '已录入真实比分' : '当前为演示比分'}</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${topLabel(m)} · 当前${RESULT_TAG[r.source]}</div>
           <div style="display:flex;align-items:center;gap:8px">
             <div style="flex:1;font-weight:700;font-size:13px;text-align:right">${hn}</div>
             <input class="adm-in" data-score="${m.id}-home" type="number" min="0" max="20" value="${r.home}"
@@ -669,7 +724,7 @@
     const results = getResults();
     delete results[matchId];
     save(LS.results, results);
-    toast('已恢复为演示比分');
+    toast('已恢复为模拟比分');
     render();
   }
   function exportCalendar() {

@@ -1,178 +1,172 @@
 /**
- * 2026 世界杯数据
- * - 48 支球队，分 12 个小组（A~L）
- * - 小组赛赛程自动生成（每组 6 场，3 个比赛日）
- * - 每场比赛预生成确定性比分，比赛"开赛后"才视为已结束并参与积分计算
+ * 2026 美加墨世界杯 · 官方赛程数据
+ * 数据来源：百度体育官方赛程（北京时间），分组、对阵、日期、开球时间均按官方还原。
  *
- * 说明：2026 世界杯由美国 / 加拿大 / 墨西哥联合举办，小组赛于 2026-06-11 开赛。
- *       为方便演示，部分球队仅为示意性分组。
+ * - 48 支球队，12 个小组（A~L），共 104 场（72 场小组赛 + 32 场淘汰赛）
+ * - 时间为北京时间
+ * - 淘汰赛对阵以官方"槽位"表示（小组名次 / 上一轮胜负 / 最佳第三名），
+ *   运行时根据成绩自动解析为具体球队
  */
 
-// 16 座承办城市
+// 承办城市（用于展示，官方赛程未逐场提供，此处循环填充）
 const VENUES = [
-  '墨西哥城', '瓜达拉哈拉', '蒙特雷',
-  '多伦多', '温哥华',
+  '墨西哥城', '瓜达拉哈拉', '蒙特雷', '多伦多', '温哥华',
   '纽约/新泽西', '洛杉矶', '旧金山湾区', '西雅图', '达拉斯',
   '堪萨斯城', '休斯顿', '亚特兰大', '费城', '迈阿密', '波士顿'
 ];
 
-// 48 支球队（按分组顺序排列，每 4 支为一组）
+// 48 支球队（按小组顺序排列，每组 4 支，组内顺序为官方排位 1~4）
 const TEAM_LIST = [
-  { name: '墨西哥', flag: '🇲🇽' }, { name: '波兰', flag: '🇵🇱' }, { name: '新西兰', flag: '🇳🇿' }, { name: '南非', flag: '🇿🇦' },
-  { name: '加拿大', flag: '🇨🇦' }, { name: '摩洛哥', flag: '🇲🇦' }, { name: '日本', flag: '🇯🇵' }, { name: '卡塔尔', flag: '🇶🇦' },
-  { name: '美国', flag: '🇺🇸' }, { name: '瑞士', flag: '🇨🇭' }, { name: '伊朗', flag: '🇮🇷' }, { name: '加纳', flag: '🇬🇭' },
-  { name: '阿根廷', flag: '🇦🇷' }, { name: '澳大利亚', flag: '🇦🇺' }, { name: '克罗地亚', flag: '🇭🇷' }, { name: '科特迪瓦', flag: '🇨🇮' },
-  { name: '法国', flag: '🇫🇷' }, { name: '塞内加尔', flag: '🇸🇳' }, { name: '韩国', flag: '🇰🇷' }, { name: '巴拿马', flag: '🇵🇦' },
-  { name: '巴西', flag: '🇧🇷' }, { name: '塞尔维亚', flag: '🇷🇸' }, { name: '尼日利亚', flag: '🇳🇬' }, { name: '哥斯达黎加', flag: '🇨🇷' },
-  { name: '西班牙', flag: '🇪🇸' }, { name: '乌拉圭', flag: '🇺🇾' }, { name: '突尼斯', flag: '🇹🇳' }, { name: '挪威', flag: '🇳🇴' },
-  { name: '葡萄牙', flag: '🇵🇹' }, { name: '丹麦', flag: '🇩🇰' }, { name: '埃及', flag: '🇪🇬' }, { name: '秘鲁', flag: '🇵🇪' },
-  { name: '荷兰', flag: '🇳🇱' }, { name: '哥伦比亚', flag: '🇨🇴' }, { name: '喀麦隆', flag: '🇨🇲' }, { name: '智利', flag: '🇨🇱' },
-  { name: '德国', flag: '🇩🇪' }, { name: '乌克兰', flag: '🇺🇦' }, { name: '沙特', flag: '🇸🇦' }, { name: '巴拉圭', flag: '🇵🇾' },
-  { name: '比利时', flag: '🇧🇪' }, { name: '奥地利', flag: '🇦🇹' }, { name: '阿尔及利亚', flag: '🇩🇿' }, { name: '希腊', flag: '🇬🇷' },
-  { name: '意大利', flag: '🇮🇹' }, { name: '厄瓜多尔', flag: '🇪🇨' }, { name: '瑞典', flag: '🇸🇪' }, { name: '土耳其', flag: '🇹🇷' }
+  { name: '墨西哥', flag: '🇲🇽' }, { name: '南非', flag: '🇿🇦' }, { name: '韩国', flag: '🇰🇷' }, { name: '捷克', flag: '🇨🇿' },
+  { name: '加拿大', flag: '🇨🇦' }, { name: '波黑', flag: '🇧🇦' }, { name: '卡塔尔', flag: '🇶🇦' }, { name: '瑞士', flag: '🇨🇭' },
+  { name: '巴西', flag: '🇧🇷' }, { name: '摩洛哥', flag: '🇲🇦' }, { name: '海地', flag: '🇭🇹' }, { name: '苏格兰', flag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿' },
+  { name: '美国', flag: '🇺🇸' }, { name: '巴拉圭', flag: '🇵🇾' }, { name: '澳大利亚', flag: '🇦🇺' }, { name: '土耳其', flag: '🇹🇷' },
+  { name: '德国', flag: '🇩🇪' }, { name: '库拉索', flag: '🇨🇼' }, { name: '科特迪瓦', flag: '🇨🇮' }, { name: '厄瓜多尔', flag: '🇪🇨' },
+  { name: '荷兰', flag: '🇳🇱' }, { name: '日本', flag: '🇯🇵' }, { name: '瑞典', flag: '🇸🇪' }, { name: '突尼斯', flag: '🇹🇳' },
+  { name: '比利时', flag: '🇧🇪' }, { name: '埃及', flag: '🇪🇬' }, { name: '伊朗', flag: '🇮🇷' }, { name: '新西兰', flag: '🇳🇿' },
+  { name: '西班牙', flag: '🇪🇸' }, { name: '佛得角', flag: '🇨🇻' }, { name: '沙特阿拉伯', flag: '🇸🇦' }, { name: '乌拉圭', flag: '🇺🇾' },
+  { name: '法国', flag: '🇫🇷' }, { name: '塞内加尔', flag: '🇸🇳' }, { name: '伊拉克', flag: '🇮🇶' }, { name: '挪威', flag: '🇳🇴' },
+  { name: '阿根廷', flag: '🇦🇷' }, { name: '阿尔及利亚', flag: '🇩🇿' }, { name: '奥地利', flag: '🇦🇹' }, { name: '约旦', flag: '🇯🇴' },
+  { name: '葡萄牙', flag: '🇵🇹' }, { name: '刚果(金)', flag: '🇨🇩' }, { name: '乌兹别克斯坦', flag: '🇺🇿' }, { name: '哥伦比亚', flag: '🇨🇴' },
+  { name: '英格兰', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' }, { name: '克罗地亚', flag: '🇭🇷' }, { name: '加纳', flag: '🇬🇭' }, { name: '巴拿马', flag: '🇵🇦' }
 ];
 
 const GROUP_NAMES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
 
-// 简单确定性哈希，用于生成稳定的比分
-function hashStr(str) {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0);
-}
+// 小组赛日程（北京时间）：每组三个比赛日，每个比赛日两场
+// 顺序与对阵生成一致：R1=[T1vT2,T3vT4] R2=[T1vT3,T4vT2] R3=[T1vT4,T2vT3]
+const SCHED = {
+  A: [[['06-12', '03:00'], ['06-12', '10:00']], [['06-19', '09:00'], ['06-19', '00:00']], [['06-25', '09:00'], ['06-25', '09:00']]],
+  B: [[['06-13', '03:00'], ['06-14', '03:00']], [['06-19', '06:00'], ['06-19', '03:00']], [['06-25', '03:00'], ['06-25', '03:00']]],
+  C: [[['06-14', '06:00'], ['06-14', '09:00']], [['06-20', '08:30'], ['06-20', '06:00']], [['06-25', '06:00'], ['06-25', '06:00']]],
+  D: [[['06-13', '09:00'], ['06-14', '12:00']], [['06-20', '03:00'], ['06-20', '11:00']], [['06-26', '10:00'], ['06-26', '10:00']]],
+  E: [[['06-15', '01:00'], ['06-15', '07:00']], [['06-21', '04:00'], ['06-21', '08:00']], [['06-26', '04:00'], ['06-26', '04:00']]],
+  F: [[['06-15', '04:00'], ['06-15', '10:00']], [['06-21', '01:00'], ['06-21', '12:00']], [['06-26', '07:00'], ['06-26', '07:00']]],
+  G: [[['06-16', '03:00'], ['06-16', '09:00']], [['06-22', '03:00'], ['06-22', '09:00']], [['06-27', '11:00'], ['06-27', '11:00']]],
+  H: [[['06-16', '00:00'], ['06-16', '06:00']], [['06-22', '00:00'], ['06-22', '06:00']], [['06-27', '08:00'], ['06-27', '08:00']]],
+  I: [[['06-17', '03:00'], ['06-17', '06:00']], [['06-23', '05:00'], ['06-23', '08:00']], [['06-27', '03:00'], ['06-27', '03:00']]],
+  J: [[['06-17', '09:00'], ['06-17', '12:00']], [['06-23', '01:00'], ['06-23', '11:00']], [['06-28', '10:00'], ['06-28', '10:00']]],
+  K: [[['06-18', '01:00'], ['06-18', '10:00']], [['06-24', '01:00'], ['06-24', '10:00']], [['06-28', '07:30'], ['06-28', '07:30']]],
+  L: [[['06-18', '04:00'], ['06-18', '07:00']], [['06-24', '04:00'], ['06-24', '07:00']], [['06-28', '05:00'], ['06-28', '05:00']]],
+};
 
-function seededScore(id) {
-  const h = hashStr(id);
-  // 0~4 进球，整体偏向小比分
-  const home = [0, 1, 1, 2, 2, 3, 1, 0, 4, 2][h % 10];
-  const away = [1, 0, 2, 1, 0, 1, 1, 0, 1, 3][Math.floor(h / 10) % 10];
-  return { home, away };
-}
+// 官方已赛结果（北京时间 6-12 揭幕日）
+const KNOWN_RESULTS = {
+  'GA-R1-1': { home: 2, away: 0 }, // 墨西哥 2-0 南非（揭幕战）
+  'GA-R1-2': { home: 2, away: 1 }, // 韩国 2-1 捷克
+};
 
-// 构造分组
 const GROUPS = GROUP_NAMES.map((g, gi) => ({
   name: g,
   teams: TEAM_LIST.slice(gi * 4, gi * 4 + 4).map(t => t.name)
 }));
 
-// 球队名 -> 信息映射
 const TEAMS = {};
-TEAM_LIST.forEach((t, idx) => {
-  TEAMS[t.name] = { ...t, group: GROUP_NAMES[Math.floor(idx / 4)] };
-});
+TEAM_LIST.forEach((t, idx) => { TEAMS[t.name] = { ...t, group: GROUP_NAMES[Math.floor(idx / 4)] }; });
 
-// 生成小组赛赛程
-function buildMatches() {
+// 确定性哈希 -> 稳定的模拟比分
+function hashStr(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0);
+}
+function seededScore(id) {
+  const h = hashStr(id);
+  const home = [0, 1, 1, 2, 2, 3, 1, 0, 4, 2][h % 10];
+  const away = [1, 0, 2, 1, 0, 1, 1, 0, 1, 3][Math.floor(h / 10) % 10];
+  return { home, away };
+}
+
+let _venueCursor = 0;
+const nextVenue = () => VENUES[_venueCursor++ % VENUES.length];
+
+// 小组赛
+function buildGroupMatches() {
   const matches = [];
-  const kickoffHours = [12, 15, 18, 21];
-  let venueCursor = 0;
-
-  GROUPS.forEach((group, gi) => {
+  GROUPS.forEach((group) => {
     const [t0, t1, t2, t3] = group.teams;
     const rounds = [
-      [[t0, t1], [t2, t3]], // 第1轮
-      [[t0, t2], [t3, t1]], // 第2轮
-      [[t0, t3], [t1, t2]], // 第3轮
+      [[t0, t1], [t2, t3]],
+      [[t0, t2], [t3, t1]],
+      [[t0, t3], [t1, t2]],
     ];
-    const roundBaseDay = [11, 17, 23]; // 6 月：3 个比赛日的起始
-    const roundSpan = [6, 6, 5];
-
     rounds.forEach((pairings, ri) => {
-      const day = roundBaseDay[ri] + (gi % roundSpan[ri]);
       pairings.forEach((pair, pi) => {
-        const hour = kickoffHours[(gi + pi + ri) % kickoffHours.length];
-        const dd = String(day).padStart(2, '0');
-        const hh = String(hour).padStart(2, '0');
+        const [date, time] = SCHED[group.name][ri][pi];
         const id = `G${group.name}-R${ri + 1}-${pi + 1}`;
-        const venue = VENUES[venueCursor % VENUES.length];
-        venueCursor++;
+        const known = KNOWN_RESULTS[id];
         matches.push({
-          id,
-          stage: '小组赛',
-          group: group.name,
-          round: ri + 1,
-          home: pair[0],
-          away: pair[1],
-          kickoff: `2026-06-${dd}T${hh}:00:00`,
-          venue,
-          result: seededScore(id), // 预生成比分，开赛后才"揭晓"
+          id, stage: '小组赛', group: group.name, round: ri + 1,
+          home: pair[0], away: pair[1],
+          kickoff: `2026-${date}T${time}:00`,
+          venue: nextVenue(),
+          result: known || seededScore(id),
+          official: !!known,
         });
       });
     });
   });
-
-  matches.sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
   return matches;
 }
 
-// 生成淘汰赛赛程（对阵以"槽位"表示，运行时根据成绩自动解析为具体球队）
-function buildKnockout() {
-  const list = [];
-  let vc = 0;
-  const venue = () => VENUES[vc++ % VENUES.length];
-  const g = (group, rank) => ({ kind: 'group', group, rank });
-  const win = (match) => ({ kind: 'winner', match });
-  const lose = (match) => ({ kind: 'loser', match });
+// 槽位构造器
+const g = (group, rank) => ({ kind: 'group', group, rank });
+const win = (match) => ({ kind: 'winner', match });
+const lose = (match) => ({ kind: 'loser', match });
+const third = (owner, groups) => ({ kind: 'third', match: owner, candidates: groups, label: groups.map(x => x + '3').join('/') });
 
-  function add(id, stage, bn, bi, homeSlot, awaySlot, date, hour) {
-    const hh = String(hour).padStart(2, '0');
+// 淘汰赛（按官方对阵槽位、日期、北京时间还原；编号即官方场次号）
+function buildKnockout() {
+  const defs = [
+    // 1/16 决赛（32 强）
+    ['R32-1', '1/16 决赛', '1/16', 1, g('A', 2), g('B', 2), '06-29', '03:00'],
+    ['R32-2', '1/16 决赛', '1/16', 2, g('C', 1), g('F', 2), '06-30', '01:00'],
+    ['R32-3', '1/16 决赛', '1/16', 3, g('E', 1), third('R32-3', ['A', 'B', 'C', 'D', 'F']), '06-30', '04:30'],
+    ['R32-4', '1/16 决赛', '1/16', 4, g('F', 1), g('C', 2), '06-30', '09:00'],
+    ['R32-5', '1/16 决赛', '1/16', 5, g('E', 2), g('I', 2), '07-01', '01:00'],
+    ['R32-6', '1/16 决赛', '1/16', 6, g('I', 1), third('R32-6', ['C', 'D', 'F', 'G', 'H']), '07-01', '05:00'],
+    ['R32-7', '1/16 决赛', '1/16', 7, g('A', 1), third('R32-7', ['C', 'E', 'F', 'H', 'I']), '07-01', '09:00'],
+    ['R32-8', '1/16 决赛', '1/16', 8, g('L', 1), third('R32-8', ['E', 'H', 'I', 'J', 'K']), '07-02', '00:00'],
+    ['R32-9', '1/16 决赛', '1/16', 9, g('G', 1), third('R32-9', ['A', 'E', 'H', 'I', 'J']), '07-02', '04:00'],
+    ['R32-10', '1/16 决赛', '1/16', 10, g('D', 1), third('R32-10', ['B', 'E', 'F', 'I', 'J']), '07-02', '08:00'],
+    ['R32-11', '1/16 决赛', '1/16', 11, g('H', 1), g('J', 2), '07-03', '03:00'],
+    ['R32-12', '1/16 决赛', '1/16', 12, g('K', 2), g('L', 2), '07-03', '07:00'],
+    ['R32-13', '1/16 决赛', '1/16', 13, g('B', 1), third('R32-13', ['E', 'F', 'G', 'I', 'J']), '07-03', '11:00'],
+    ['R32-14', '1/16 决赛', '1/16', 14, g('D', 2), g('G', 2), '07-04', '02:00'],
+    ['R32-15', '1/16 决赛', '1/16', 15, g('J', 1), g('H', 2), '07-04', '06:00'],
+    ['R32-16', '1/16 决赛', '1/16', 16, g('K', 1), third('R32-16', ['D', 'E', 'I', 'J', 'L']), '07-04', '09:30'],
+    // 1/8 决赛（16 强）
+    ['R16-1', '1/8 决赛', '1/8', 1, win('R32-1'), win('R32-3'), '07-05', '01:00'],
+    ['R16-2', '1/8 决赛', '1/8', 2, win('R32-2'), win('R32-5'), '07-05', '05:00'],
+    ['R16-3', '1/8 决赛', '1/8', 3, win('R32-4'), win('R32-6'), '07-06', '04:00'],
+    ['R16-4', '1/8 决赛', '1/8', 4, win('R32-7'), win('R32-8'), '07-06', '08:00'],
+    ['R16-5', '1/8 决赛', '1/8', 5, win('R32-11'), win('R32-12'), '07-07', '03:00'],
+    ['R16-6', '1/8 决赛', '1/8', 6, win('R32-9'), win('R32-10'), '07-07', '08:00'],
+    ['R16-7', '1/8 决赛', '1/8', 7, win('R32-14'), win('R32-16'), '07-08', '00:00'],
+    ['R16-8', '1/8 决赛', '1/8', 8, win('R32-13'), win('R32-15'), '07-08', '04:00'],
+    // 1/4 决赛
+    ['QF-1', '1/4 决赛', '1/4', 1, win('R16-1'), win('R16-2'), '07-10', '04:00'],
+    ['QF-2', '1/4 决赛', '1/4', 2, win('R16-5'), win('R16-6'), '07-11', '03:00'],
+    ['QF-3', '1/4 决赛', '1/4', 3, win('R16-3'), win('R16-4'), '07-12', '05:00'],
+    ['QF-4', '1/4 决赛', '1/4', 4, win('R16-7'), win('R16-8'), '07-12', '09:00'],
+    // 半决赛
+    ['SF-1', '半决赛', '半决赛', 1, win('QF-1'), win('QF-2'), '07-15', '03:00'],
+    ['SF-2', '半决赛', '半决赛', 2, win('QF-3'), win('QF-4'), '07-16', '03:00'],
+    // 季军赛 & 决赛
+    ['3RD', '季军赛', '季军赛', 1, lose('SF-1'), lose('SF-2'), '07-19', '05:00'],
+    ['FINAL', '决赛', '决赛', 1, win('SF-1'), win('SF-2'), '07-20', '03:00'],
+  ];
+  return defs.map(([id, stage, bn, bi, homeSlot, awaySlot, date, time]) => {
     const r = seededScore(id);
     if (r.home === r.away) r.home += 1; // 淘汰赛必分胜负
-    list.push({
-      id, knockout: true, stage, bn, bi,
-      homeSlot, awaySlot,
-      kickoff: `2026-${date}T${hh}:00:00`,
-      venue: venue(),
-      result: r,
-    });
-  }
-
-  // 1/16 决赛（32 强）：12 个小组第1、第2 + 8 个小组第3
-  const r32Slots = [
-    g('A', 1), g('B', 2), g('C', 1), g('D', 2), g('E', 1), g('F', 2),
-    g('G', 1), g('H', 2), g('I', 1), g('J', 2), g('K', 1), g('L', 2),
-    g('A', 2), g('B', 1), g('C', 2), g('D', 1), g('E', 2), g('F', 1),
-    g('G', 2), g('H', 1), g('I', 2), g('J', 1), g('K', 2), g('L', 1),
-    g('A', 3), g('B', 3), g('C', 3), g('D', 3), g('E', 3), g('F', 3),
-    g('G', 3), g('H', 3),
-  ];
-  const r32Days = ['06-28', '06-28', '06-28', '06-29', '06-29', '06-29', '06-30', '06-30',
-    '06-30', '07-01', '07-01', '07-01', '07-02', '07-02', '07-03', '07-03'];
-  const knHours = [13, 17, 21];
-  for (let i = 0; i < 16; i++) {
-    add(`R32-${i + 1}`, '1/16 决赛', '1/16', i + 1,
-      r32Slots[i * 2], r32Slots[i * 2 + 1], r32Days[i], knHours[i % knHours.length]);
-  }
-
-  // 1/8 决赛（16 强）
-  const r16Days = ['07-04', '07-04', '07-05', '07-05', '07-06', '07-06', '07-07', '07-07'];
-  for (let i = 0; i < 8; i++) {
-    add(`R16-${i + 1}`, '1/8 决赛', '1/8', i + 1,
-      win(`R32-${i * 2 + 1}`), win(`R32-${i * 2 + 2}`), r16Days[i], knHours[i % 2 ? 1 : 2]);
-  }
-
-  // 1/4 决赛
-  const qfDays = ['07-09', '07-09', '07-10', '07-10'];
-  for (let i = 0; i < 4; i++) {
-    add(`QF-${i + 1}`, '1/4 决赛', '1/4', i + 1,
-      win(`R16-${i * 2 + 1}`), win(`R16-${i * 2 + 2}`), qfDays[i], i % 2 ? 21 : 17);
-  }
-
-  // 半决赛
-  add('SF-1', '半决赛', '半决赛', 1, win('QF-1'), win('QF-2'), '07-14', 21);
-  add('SF-2', '半决赛', '半决赛', 2, win('QF-3'), win('QF-4'), '07-15', 21);
-
-  // 季军赛 & 决赛
-  add('3RD', '季军赛', '季军赛', 1, lose('SF-1'), lose('SF-2'), '07-18', 17);
-  add('FINAL', '决赛', '决赛', 1, win('SF-1'), win('SF-2'), '07-19', 21);
-
-  return list;
+    return {
+      id, knockout: true, stage, bn, bi, homeSlot, awaySlot,
+      kickoff: `2026-${date}T${time}:00`, venue: nextVenue(), result: r, official: false,
+    };
+  });
 }
 
-const MATCHES = buildMatches().concat(buildKnockout())
+const MATCHES = buildGroupMatches().concat(buildKnockout())
   .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
 
 window.WC_DATA = { TEAMS, TEAM_LIST, GROUPS, GROUP_NAMES, MATCHES, VENUES };
