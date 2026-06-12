@@ -30,6 +30,8 @@
     scheduleFilter: 'all', // all | group | knockout | upcoming | mine
     teamGroupFilter: 'all',
     followView: null,      // schedule | teams（null 时按是否已关注自动决定）
+    scheduleViewMode: 'list', // list | calendar（我的赛程）
+    selectedDay: null,     // 月历选中的日期 key
     rankView: 'teams',     // teams | users
     authMode: 'login',     // login | register
     authError: '',
@@ -437,7 +439,24 @@
     return html;
   }
 
-  // 关注球队的全部赛程（看球日历）
+  // 单场比赛行（列表 / 月历 共用）
+  function followMatchRow(m, followed) {
+    const t = teamsOf(m);
+    const hF = t.home.name && followed.has(t.home.name), aF = t.away.name && followed.has(t.away.name);
+    const hn = t.home.name ? `${flag(t.home.name)} ${t.home.name}` : t.home.label;
+    const an = t.away.name ? `${flag(t.away.name)} ${t.away.name}` : t.away.label;
+    const r = getMatchResult(m);
+    const mid = showsScore(m)
+      ? `<span style="font-weight:800;color:var(--navy)"> ${r.home} : ${r.away} </span>`
+      : `<span class="muted"> vs </span>`;
+    return `<div class="cal-match">
+        <div class="cal-time">${fmtTime(m.kickoff)}</div>
+        <div class="cal-info">
+          <div class="cal-teams"><span class="${hF ? 'cal-foll' : ''}">${hn}</span>${mid}<span class="${aF ? 'cal-foll' : ''}">${an}</span></div>
+          <div class="cal-sub">${topLabel(m)} · ${m.venue}</div></div></div>`;
+  }
+
+  // 关注球队的全部赛程（看球日历：列表 / 月历）
   function renderFollowedSchedule(followed) {
     const list = MATCHES.filter(m => followsMatch(m, followed));
     if (list.length === 0) {
@@ -446,24 +465,61 @@
     const byDate = {};
     list.forEach(m => { const k = fmtDateKey(m.kickoff); (byDate[k] = byDate[k] || []).push(m); });
     const teamsLine = [...followed].map(t => `${flag(t)}${t}`).join('  ');
+    const mode = state.scheduleViewMode || 'list';
     let html = `<div style="font-size:12px;color:var(--muted);margin:2px 2px 10px">已关注：${teamsLine}</div>`;
+    html += `<div class="filter-bar">
+      <button class="chip ${mode === 'list' ? 'active' : ''}" data-scheduleview="list">📋 列表</button>
+      <button class="chip ${mode === 'calendar' ? 'active' : ''}" data-scheduleview="calendar">🗓️ 月历</button></div>`;
     html += `<button class="btn-ghost" id="exportIcs" style="margin-bottom:14px">⬇️ 导出到手机日历 (.ics)</button>`;
+    html += mode === 'calendar' ? renderMonthCalendar(byDate, followed) : renderScheduleList(byDate, followed);
+    return html;
+  }
+
+  function renderScheduleList(byDate, followed) {
+    let html = '';
     Object.keys(byDate).sort().forEach(k => {
       const { main, dow } = fmtDateLabel(k);
       html += `<div class="date-head" style="position:static;padding-left:2px">${main} <span class="dow">${dow}</span></div>`;
-      byDate[k].forEach(m => {
-        const t = teamsOf(m);
-        const hF = t.home.name && followed.has(t.home.name), aF = t.away.name && followed.has(t.away.name);
-        const hn = t.home.name ? `${flag(t.home.name)} ${t.home.name}` : t.home.label;
-        const an = t.away.name ? `${flag(t.away.name)} ${t.away.name}` : t.away.label;
-        html += `<div class="cal-match">
-            <div class="cal-time">${fmtTime(m.kickoff)}</div>
-            <div class="cal-info">
-              <div class="cal-teams"><span class="${hF ? 'cal-foll' : ''}">${hn}</span>
-              <span class="muted"> vs </span><span class="${aF ? 'cal-foll' : ''}">${an}</span></div>
-              <div class="cal-sub">${topLabel(m)} · ${m.venue}</div></div></div>`;
-      });
+      byDate[k].forEach(m => { html += followMatchRow(m, followed); });
     });
+    return html;
+  }
+
+  // 月历视图：周一~周日排列，标记有比赛的日期，点选某天看当天比赛
+  function renderMonthCalendar(byDate, followed) {
+    const dateKeys = Object.keys(byDate).sort();
+    const months = [];
+    dateKeys.forEach(k => {
+      const d = new Date(k + 'T00:00:00');
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      if (!months.some(x => x.key === key)) months.push({ key, year: d.getFullYear(), month: d.getMonth() });
+    });
+    const selected = (state.selectedDay && byDate[state.selectedDay]) ? state.selectedDay : dateKeys[0];
+    const WD = ['一', '二', '三', '四', '五', '六', '日'];
+    let html = '';
+    months.forEach(mo => {
+      html += `<div class="cal-month"><div class="cal-month-title">${mo.year}年${mo.month + 1}月</div>`;
+      html += `<div class="cal-grid">` + WD.map(w => `<div class="cal-wd">${w}</div>`).join('');
+      const startCol = (new Date(mo.year, mo.month, 1).getDay() + 6) % 7; // 周一为第一列
+      const days = new Date(mo.year, mo.month + 1, 0).getDate();
+      for (let i = 0; i < startCol; i++) html += `<div class="cal-cell empty"></div>`;
+      for (let d = 1; d <= days; d++) {
+        const k = `${mo.year}-${String(mo.month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const ms = byDate[k];
+        if (ms) {
+          html += `<div class="cal-cell has ${k === selected ? 'sel' : ''}" data-calday="${k}">
+            <span class="cd-n">${d}</span><span class="cd-badge">${ms.length}</span></div>`;
+        } else {
+          html += `<div class="cal-cell"><span class="cd-n off">${d}</span></div>`;
+        }
+      }
+      html += `</div></div>`;
+    });
+    if (selected) {
+      const { main, dow } = fmtDateLabel(selected);
+      html += `<div class="date-head" style="position:static;padding-left:2px">${main} <span class="dow">${dow}</span><span class="count" style="margin-left:auto">${byDate[selected].length} 场</span></div>`;
+      byDate[selected].forEach(m => { html += followMatchRow(m, followed); });
+    }
     return html;
   }
 
@@ -706,6 +762,10 @@
       if (gf) { state.teamGroupFilter = gf.dataset.gfilter; return render(); }
       const fv = e.target.closest('[data-followview]');
       if (fv) { state.followView = fv.dataset.followview; return render(); }
+      const svw = e.target.closest('[data-scheduleview]');
+      if (svw) { state.scheduleViewMode = svw.dataset.scheduleview; return render(); }
+      const cd = e.target.closest('[data-calday]');
+      if (cd) { state.selectedDay = cd.dataset.calday; return render(); }
       const rv = e.target.closest('[data-rankview]');
       if (rv) { state.rankView = rv.dataset.rankview; return render(); }
       const gt = e.target.closest('[data-goto]');

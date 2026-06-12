@@ -323,6 +323,30 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .tab.active { color: var(--navy); }
 .tab.active .tab-ico { filter: none; opacity: 1; transform: translateY(-1px); }
 
+/* 我的赛程 - 月历视图 */
+.cal-month { margin-bottom: 18px; }
+.cal-month-title { font-size: 15px; font-weight: 800; color: var(--navy); margin: 4px 2px 8px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-wd { text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); padding: 2px 0 4px; }
+.cal-cell {
+  position: relative; aspect-ratio: 1 / 1; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: #f6f7f9;
+}
+.cal-cell.empty { background: transparent; }
+.cal-cell .cd-n { font-size: 13px; font-weight: 700; color: var(--navy); }
+.cal-cell .cd-n.off { color: #c4c8cf; font-weight: 600; }
+.cal-cell.has { background: #fff3e0; cursor: pointer; box-shadow: inset 0 0 0 1px #ffd8a8; }
+.cal-cell.has .cd-n { color: #b8860b; }
+.cal-cell.has .cd-badge {
+  position: absolute; top: 4px; right: 4px; min-width: 15px; height: 15px; padding: 0 3px;
+  border-radius: 8px; background: var(--accent); color: #fff;
+  font-size: 10px; font-weight: 800; line-height: 15px; text-align: center;
+}
+.cal-cell.sel { background: var(--accent); box-shadow: none; }
+.cal-cell.sel .cd-n, .cal-cell.sel .cd-badge { color: #fff; }
+.cal-cell.sel .cd-badge { background: rgba(255,255,255,.3); }
+
 @media (min-width: 481px) {
   body { padding: 0; }
   #app { box-shadow: 0 0 40px rgba(0,0,0,.08); }
