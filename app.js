@@ -28,6 +28,8 @@
     tab: 'schedule',
     scheduleFilter: 'all', // all | group | knockout | upcoming | mine
     teamGroupFilter: 'all',
+    followView: null,      // schedule | teams（null 时按是否已关注自动决定）
+    rankView: 'users',     // users | teams
     authMode: 'login',     // login | register
     authError: '',
     adminOpen: false,
@@ -152,6 +154,25 @@
   function groupStanding(groupName) {
     const t = groupTable(groupName);
     return t ? t.map(x => x.team) : null;
+  }
+
+  // 实时小组积分榜：按目前已结算的比赛统计（未踢完也返回）
+  function liveGroupTable(groupName) {
+    const grp = GROUPS.find(x => x.name === groupName);
+    if (!grp) return [];
+    const ms = MATCHES.filter(m => !m.knockout && m.group === groupName);
+    const tbl = {};
+    grp.teams.forEach(t => { tbl[t] = { team: t, played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0 }; });
+    ms.forEach(m => {
+      if (!isSettled(m)) return;
+      const r = getMatchResult(m), H = tbl[m.home], A = tbl[m.away];
+      H.played++; A.played++; H.gf += r.home; H.ga += r.away; A.gf += r.away; A.ga += r.home;
+      H.gd = H.gf - H.ga; A.gd = A.gf - A.ga;
+      if (r.home > r.away) { H.w++; A.l++; H.pts += 3; }
+      else if (r.home < r.away) { A.w++; H.l++; A.pts += 3; }
+      else { H.d++; A.d++; H.pts++; A.pts++; }
+    });
+    return Object.values(tbl).sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || a.team.localeCompare(b.team));
   }
 
   // 12 个小组第三名排名（全部小组结算后才返回），前 8 名晋级
@@ -372,17 +393,28 @@
       <span class="pill wait">比赛进行中</span></div>`;
   }
 
-  // ---------- 渲染：关注 ----------
+  // ---------- 渲染：关注（我的球队） ----------
   function renderFollow() {
     const user = currentUser();
-    if (!user) return loginPrompt('登录后即可关注球队，并自动生成你的看球日历');
+    if (!user) return loginPrompt('登录后选择感兴趣的球队，查看专属赛程');
     const followed = new Set(user.followed);
+    const view = state.followView || (followed.size ? 'schedule' : 'teams');
+    const toggle = `<div class="filter-bar">
+      <button class="chip ${view === 'schedule' ? 'active' : ''}" data-followview="schedule">我的赛程</button>
+      <button class="chip ${view === 'teams' ? 'active' : ''}" data-followview="teams">选择球队</button></div>`;
+    let html = `<div class="section-title">⭐ 我的球队 <span class="count">已关注 ${followed.size} 支</span></div>` + toggle;
+    html += view === 'schedule' ? renderFollowedSchedule(user, followed) : renderTeamPicker(followed);
+    return html;
+  }
+
+  // 选择感兴趣的球队
+  function renderTeamPicker(followed) {
     const filters = [{ k: 'all', label: '全部小组' }].concat(GROUP_NAMES.map(g => ({ k: g, label: `${g}组` })));
     const bar = `<div class="filter-bar">${filters.map(f =>
       `<button class="chip ${state.teamGroupFilter === f.k ? 'active' : ''}" data-gfilter="${f.k}">${f.label}</button>`
     ).join('')}</div>`;
     const showGroups = state.teamGroupFilter === 'all' ? GROUPS : GROUPS.filter(g => g.name === state.teamGroupFilter);
-    let html = `<div class="section-title">⭐ 关注球队 <span class="count">已关注 ${followed.size} 支</span></div>` + bar;
+    let html = `<div style="font-size:12px;color:var(--muted);margin:2px 2px 8px">点击球队即可关注/取消，关注后可在「我的赛程」查看全部比赛</div>` + bar;
     showGroups.forEach(g => {
       html += `<div class="group-block"><h3><span class="tag">${g.name}组</span></h3><div class="group-grid">`;
       g.teams.forEach(t => {
@@ -397,15 +429,16 @@
     return html;
   }
 
-  // ---------- 渲染：看球日历 ----------
-  function renderCalendar() {
-    const user = currentUser();
-    const followed = new Set(user.followed);
+  // 关注球队的全部赛程（看球日历）
+  function renderFollowedSchedule(user, followed) {
     const list = MATCHES.filter(m => followsMatch(m, followed));
-    if (list.length === 0) return emptyBlock('📅', '关注球队后<br/>这里会自动生成你的看球日历');
+    if (list.length === 0) {
+      return emptyBlock('⭐', '你还没有关注球队<br/>切到「选择球队」挑选感兴趣的队伍<br/>关注后这里会汇总它们的全部赛程');
+    }
     const byDate = {};
     list.forEach(m => { const k = fmtDateKey(m.kickoff); (byDate[k] = byDate[k] || []).push(m); });
-    let html = `<div class="section-title">📅 我的看球日历 <span class="count">共 ${list.length} 场</span></div>`;
+    const teamsLine = [...followed].map(t => `${flag(t)}${t}`).join('  ');
+    let html = `<div style="font-size:12px;color:var(--muted);margin:2px 2px 10px">已关注：${teamsLine}</div>`;
     html += `<button class="btn-ghost" id="exportIcs" style="margin-bottom:14px">⬇️ 导出到手机日历 (.ics)</button>`;
     Object.keys(byDate).sort().forEach(k => {
       const { main, dow } = fmtDateLabel(k);
@@ -474,11 +507,17 @@
     return html;
   }
 
-  // ---------- 渲染：积分榜 ----------
+  // ---------- 渲染：积分榜（玩家 / 球队） ----------
   function renderRank() {
+    const toggle = `<div class="filter-bar">
+      <button class="chip ${state.rankView === 'users' ? 'active' : ''}" data-rankview="users">玩家榜</button>
+      <button class="chip ${state.rankView === 'teams' ? 'active' : ''}" data-rankview="teams">球队榜（各小组）</button></div>`;
+    if (state.rankView === 'teams') {
+      return `<div class="section-title">🏅 球队积分榜 <span class="count">各小组</span></div>` + toggle + renderTeamStandings();
+    }
     const board = leaderboard();
     const me = currentUsername();
-    let html = `<div class="section-title">🏅 积分榜 <span class="count">${board.length} 位玩家</span></div>`;
+    let html = `<div class="section-title">🏅 玩家积分榜 <span class="count">${board.length} 位玩家</span></div>` + toggle;
     html += `<div class="card" style="font-size:12px;color:var(--muted);padding:10px 14px;margin-bottom:14px">
       规则：猜中一场比赛胜平负得 <b style="color:var(--navy)">${POINTS_CORRECT}</b> 分，未猜中不扣分。比赛结束（或录入真实比分）后自动结算。</div>`;
     if (board.length === 0) return html + emptyBlock('🏅', '还没有玩家参与');
@@ -493,6 +532,34 @@
           <div class="rank-main"><div class="rank-name">${u.username}${isMe ? '<span class="me-tag">我</span>' : ''}</div>
             <div class="rank-meta">已结算 ${u.settled} 场 · 猜中 ${u.correct} 场${u.pending ? ` · 待开赛 ${u.pending}` : ''}</div></div>
           <div class="rank-pts"><span class="n">${u.points}</span> <span class="u">分</span></div></div>`;
+    });
+    return html;
+  }
+
+  // 球队积分榜：各小组实时排名表
+  function renderTeamStandings() {
+    const followed = new Set((currentUser() || { followed: [] }).followed);
+    let html = `<div class="card" style="font-size:12px;color:var(--muted);padding:10px 14px;margin-bottom:12px">
+      胜 3 分 / 平 1 分 / 负 0 分，按 积分 → 净胜球 → 进球 排序。<span style="color:var(--win)">绿</span>=前两名出线区，<span style="color:var(--draw)">橙</span>=小组第三（争最佳第三名）。</div>`;
+    GROUPS.forEach(g => {
+      const tbl = liveGroupTable(g.name);
+      html += `<div class="card standing-card">
+        <div class="standing-title"><span class="tag">${g.name}组</span></div>
+        <div class="standing-row standing-th">
+          <span class="c-rank">#</span><span class="c-team">球队</span>
+          <span class="c-n">场</span><span class="c-n">胜</span><span class="c-n">平</span><span class="c-n">负</span><span class="c-n">净</span><span class="c-pts">分</span></div>`;
+      tbl.forEach((row, i) => {
+        const qual = i < 2 ? 'q1' : i === 2 ? 'q3' : '';
+        const mine = followed.has(row.team) ? 'mine' : '';
+        html += `<div class="standing-row ${qual} ${mine}">
+          <span class="c-rank">${i + 1}</span>
+          <span class="c-team">${flag(row.team)} ${row.team}</span>
+          <span class="c-n">${row.played}</span>
+          <span class="c-n">${row.w}</span><span class="c-n">${row.d}</span><span class="c-n">${row.l}</span>
+          <span class="c-n">${row.gd > 0 ? '+' : ''}${row.gd}</span>
+          <span class="c-pts">${row.pts}</span></div>`;
+      });
+      html += `</div>`;
     });
     return html;
   }
@@ -515,7 +582,8 @@
           <div class="ps"><div class="n">${user.followed.length}</div><div class="l">关注球队</div></div>
         </div>
       </div>
-      <div id="calBlock">${renderCalendar()}</div>
+      <div class="list-row" data-goto="follow"><span>⭐ 我的球队与专属赛程</span><span class="r">${user.followed.length} 支 ›</span></div>
+      <div class="list-row" data-goto="rank"><span>🏅 积分榜（玩家 / 球队）</span><span class="r">›</span></div>
       ${renderAdmin()}
       <div class="list-row danger" id="logoutBtn">退出登录</div>`;
   }
@@ -628,6 +696,12 @@
       if (sf) { state.scheduleFilter = sf.dataset.sfilter; return render(); }
       const gf = e.target.closest('[data-gfilter]');
       if (gf) { state.teamGroupFilter = gf.dataset.gfilter; return render(); }
+      const fv = e.target.closest('[data-followview]');
+      if (fv) { state.followView = fv.dataset.followview; return render(); }
+      const rv = e.target.closest('[data-rankview]');
+      if (rv) { state.rankView = rv.dataset.rankview; return render(); }
+      const gt = e.target.closest('[data-goto]');
+      if (gt) return go(gt.dataset.goto);
       const tc = e.target.closest('[data-team]');
       if (tc) return toggleFollow(tc.dataset.team);
       const bb = e.target.closest('[data-bet]');
