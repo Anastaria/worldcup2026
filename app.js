@@ -668,6 +668,7 @@
         segs += `<div class="bet-seg"><div class="seg-l">比分 <i>+${POINTS.score}</i></div>${scoreInputs(m, t, user && user.scoreBets)}</div>`;
         segs += `<div class="bet-seg"><div class="seg-l">总进球 <i>+${POINTS.goals}</i></div>${goalButtons(m, user && user.goalBets)}</div>`;
       }
+      segs += `<div class="bet-deadline">⏰ 开赛前可竞猜 / 修改，开赛后自动锁定</div>`;
       foot = `<div class="match-foot">${segs}</div>`;
     } else if (!known && m.knockout && !showsScore(m)) {
       foot = `<div class="match-foot"><div class="bet-result"><span class="muted">对阵确定后可竞猜</span></div></div>`;
@@ -932,7 +933,7 @@
   // 胜平负
   function renderWdlBet(user, stats) {
     const known = bettableMatches();
-    let html = betRuleCard(`猜中一场比赛的<b>胜 / 平 / 负</b>得 <b style="color:var(--navy)">${POINTS.wdl}</b> 分。已命中 ${stats.wdl.correct} 场。`);
+    let html = betRuleCard(`猜中一场比赛的<b>胜 / 平 / 负</b>得 <b style="color:var(--navy)">${POINTS.wdl}</b> 分。已命中 ${stats.wdl.correct} 场。<br/>⏰ <b>每场比赛仅在开赛前可竞猜 / 修改，开赛后自动锁定。</b>`);
     html += `<div class="section-title">🎯 胜平负竞猜 <span class="count">${known.length} 场可猜</span></div>`;
     if (known.length === 0) return html + emptyBlock('🎉', '当前没有可竞猜的比赛');
     const followed = new Set(user.followed);
@@ -949,7 +950,7 @@
   function renderScoreBet(user, stats) {
     const known = bettableMatches();
     const sb = user.scoreBets || {};
-    let html = betRuleCard(`精准猜中一场比赛的<b>最终比分</b>得 <b style="color:var(--navy)">${POINTS.score}</b> 分（难度最高）。已命中 ${stats.score.correct} 场。`);
+    let html = betRuleCard(`精准猜中一场比赛的<b>最终比分</b>得 <b style="color:var(--navy)">${POINTS.score}</b> 分（难度最高）。已命中 ${stats.score.correct} 场。<br/>⏰ <b>每场比赛仅在开赛前可竞猜 / 修改，开赛后自动锁定。</b>`);
     html += `<div class="section-title">🔢 比分竞猜 <span class="count">${known.length} 场可猜</span></div>`;
     if (known.length === 0) return html + emptyBlock('🎉', '当前没有可竞猜的比赛');
     const byDate = betDateGroups(known);
@@ -979,7 +980,7 @@
   function renderGoalBet(user, stats) {
     const known = bettableMatches();
     const gb = user.goalBets || {};
-    let html = betRuleCard(`猜中一场比赛的<b>总进球数</b>得 <b style="color:var(--navy)">${POINTS.goals}</b> 分（「6+」代表 6 球及以上）。已命中 ${stats.goals.correct} 场。`);
+    let html = betRuleCard(`猜中一场比赛的<b>总进球数</b>得 <b style="color:var(--navy)">${POINTS.goals}</b> 分（「6+」代表 6 球及以上）。已命中 ${stats.goals.correct} 场。<br/>⏰ <b>每场比赛仅在开赛前可竞猜 / 修改，开赛后自动锁定。</b>`);
     html += `<div class="section-title">⚽ 总进球数竞猜 <span class="count">${known.length} 场可猜</span></div>`;
     if (known.length === 0) return html + emptyBlock('🎉', '当前没有可竞猜的比赛');
     const opts = [0, 1, 2, 3, 4, 5, 6];
@@ -1379,6 +1380,7 @@
     render();
   }
   function clearScoreBet(matchId) {
+    if (!canBet(matchId)) { toast('比赛已开赛，无法修改竞猜'); return render(); }
     updateCurrentUser(u => { if (u.scoreBets) delete u.scoreBets[matchId]; });
     toast('已清除比分竞猜');
     render();
