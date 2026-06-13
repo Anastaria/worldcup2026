@@ -1,0 +1,19 @@
+name = "worldcup2026-score-cron"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# 每 4 小时运行一次（UTC，整点：0/4/8/12/16/20 点）
+[triggers]
+crons = ["0 */4 * * *"]
+
+# 绑定与前端 Pages 项目同一个 D1 数据库（worldcup2026）
+# database_id 在 Cloudflare 控制台 D1 数据库详情页可见，填进来即可
+[[d1_databases]]
+binding = "DB"
+database_name = "worldcup2026"
+database_id = "在此填入你的 D1 database id"
+
+# 可选：手动触发 /run 的口令。建议用命令行 secret 设置：
+#   npx wrangler secret put RUN_KEY
+# [vars]
+# RUN_KEY = "可选明文口令（不建议，推荐用 secret）"
