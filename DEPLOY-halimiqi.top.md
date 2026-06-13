@@ -76,11 +76,12 @@ EdgeOne 选「中国大陆 / 全球」区域时，绑定自有域名 **必须先
 
 ---
 
-## ⚠️ 关于"每 4 小时自动更新比分"
+## 比分自动更新（EdgeOne 版，已就绪）
 
-`cron-worker/` 那套是 **Cloudflare 专用**（Cloudflare D1 + Cloudflare Cron）。
+EdgeOne 版的自动更新是 `edge-functions/cron-update.js`，部署后路由为 **`/cron-update`**，写入 KV、与你这个 EdgeOne 站点共用数据（**不要**用 `cron-worker/`，那是 Cloudflare D1 专用的）。
 
-- 你前端部署在 **EdgeOne（用 KV，不是 D1）**，所以那个 Worker **不会**更新 EdgeOne 上的比分数据 —— 两边数据存储不互通。
-- 在 EdgeOne 方案下，比分有两种办法：
-  1. **手动录入**：进「我的 → 🛠️ 赛果录入」，输入 `ADMIN_SECRET` 后录入（默认可用）。
-  2. **自动更新（需另做）**：为 EdgeOne 单独写一套定时更新（EdgeOne 定时触发 + 写 KV + football-data.org/百度抓分）。需要的话告诉我，我来做 EdgeOne 版。
+1. 项目环境变量加：`CRON_KEY`（调用口令）、`SOURCE=footballdata`、`FOOTBALL_DATA_TOKEN`（[免费注册](https://www.football-data.org/client/register)）。
+2. 手动验证：访问 `https://halimiqi.top/cron-update?key=你的CRON_KEY`（备案+绑定前可先用默认 `*.edgeone.app` 域名验证）。
+3. 每 4 小时自动跑：用 EdgeOne「定时任务」定时 GET 该路由；若控制台无此功能，用 [cron-job.org](https://cron-job.org/) 等外部定时器每 4 小时请求该 URL。
+
+> 详见 `DEPLOY-edgeone.md` 第五节。只自动填小组赛，不覆盖已有比分；淘汰赛仍走手动录入。

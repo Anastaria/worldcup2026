@@ -97,7 +97,36 @@ git push
 
 ---
 
-## 五、和 Cloudflare 版的关系
+## 五、比分自动更新（EdgeOne 版）
+
+仓库内 `edge-functions/cron-update.js` 是 EdgeOne 版的比分自动更新，部署后自动映射为路由 **`/cron-update`**。它找出「已结束但还没比分」的小组赛，从数据源抓比分写入 KV 的 `results`，前端积分榜随之结算。
+
+**1. 配置环境变量（项目 → 环境变量）**
+
+| 变量名 | 说明 |
+|---|---|
+| `CRON_KEY` | 调用口令（未设则回退用 `ADMIN_SECRET`） |
+| `SOURCE` | `footballdata`（推荐）或 `baidu`；不填则有 token 用 footballdata 否则 baidu |
+| `FOOTBALL_DATA_TOKEN` | 用 footballdata 源时必填，[免费注册](https://www.football-data.org/client/register) |
+
+**2. 手动触发 / 验证**
+
+浏览器或 curl 访问（会立即跑一次并返回明细 JSON）：
+
+```
+https://你的域名/cron-update?key=你的CRON_KEY
+```
+
+**3. 每 4 小时自动跑（二选一）**
+
+- **EdgeOne Pages「定时任务」**：若你的项目控制台有定时任务/Cron 功能，新建一个每 4 小时定时 **GET** `/cron-update?key=...` 即可。
+- **外部定时器（通用兜底）**：用免费的 [cron-job.org](https://cron-job.org/) 或腾讯云 SCF 定时触发器，每 4 小时请求上面的 URL。
+
+> 只处理小组赛 72 场（对阵固定）；不覆盖已有比分（含手动录入）；抓不到的下次重试，不写错误数据。淘汰赛对阵需出线后确定，仍走手动录入。
+
+---
+
+## 六、和 Cloudflare 版的关系
 
 - 两套后端共存于同一仓库，**前端代码完全一样**，都通过 `/api/*` 调用，无需为某个平台改前端。
 - 想用哪个平台就在哪个平台建项目连这个仓库即可；也可以两个都部署（两份独立数据）。
