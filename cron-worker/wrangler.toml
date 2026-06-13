@@ -13,7 +13,11 @@ binding = "DB"
 database_name = "worldcup2026"
 database_id = "在此填入你的 D1 database id"
 
-# 可选：手动触发 /run 的口令。建议用命令行 secret 设置：
-#   npx wrangler secret put RUN_KEY
-# [vars]
-# RUN_KEY = "可选明文口令（不建议，推荐用 secret）"
+# 数据源：footballdata（推荐，稳定）或 baidu（尽力而为）
+# 不填则：有 FOOTBALL_DATA_TOKEN 时用 footballdata，否则用 baidu
+[vars]
+SOURCE = "footballdata"
+
+# 敏感变量请用命令行 secret 设置（不要写在这里）：
+#   npx wrangler secret put FOOTBALL_DATA_TOKEN   # footballdata 源的 API token
+#   npx wrangler secret put RUN_KEY               # 可选：手动触发 /run 的口令
